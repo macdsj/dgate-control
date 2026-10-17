@@ -943,10 +943,9 @@ else dg.ctl.warn("scan: no scan known for " .. (c or "your character")) end</scr
         </Alias>
         <Alias isActive="yes" isFolder="no">
           <name>dart</name>
-          <script>local c = dg.ctl.class
-if c == "kressa" then dg.ctl.sendArg("invoke dart", matches[2])
-elseif c == "tarvi" then dg.ctl.sendArg("psi dart at", matches[2])
-else dg.ctl.warn("dart: no dart known for " .. (c or "your character")) end</script>
+          <script>-- for now every character uses:  dart [target]  ->  invoke dart [target]
+-- (change this when a psion needs its own version)
+dg.ctl.sendArg("invoke dart", matches[2])</script>
           <command />
           <packageName />
           <regex>^dart(?:\s+(.*))?$</regex>
@@ -1492,7 +1491,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.29"
+C.version = "0.30"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
