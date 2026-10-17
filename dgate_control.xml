@@ -1063,6 +1063,27 @@ else dg.ctl.warn("slow: no slow known for " .. (c or "your character")) end</scr
         <script />
         <eventHandlerList />
         <Script isActive="yes" isFolder="no">
+          <name>DG Control - auto logging</name>
+          <packageName />
+          <script>-- DG Control :: auto-start logging
+-- Starts Mudlet's session log when the profile connects (and right away if already connected).
+-- To turn this off for one profile, untick this script.
+dg = dg or {}
+function dg.autoLog()
+  if dg._autoLogged then return end
+  dg._autoLogged = true
+  local ok, a, b = pcall(startLogging, true)
+  if ok and a then
+    cecho("\n&lt;128,128,128&gt;[dg] logging started: " .. tostring(b) .. "&lt;reset&gt;\n")
+  end
+end
+if dg._autoLogH then killAnonymousEventHandler(dg._autoLogH) end
+dg._autoLogH = registerAnonymousEventHandler("sysConnectionEvent", function() tempTimer(2, dg.autoLog) end)
+if (getNetworkLatency and getNetworkLatency() or 0) &gt; 0 then tempTimer(1, dg.autoLog) end
+</script>
+          <eventHandlerList />
+        </Script>
+        <Script isActive="yes" isFolder="no">
           <name>DG Control - highlights (data)</name>
           <packageName />
           <script>-- DG Control :: highlights (stub)
@@ -1455,7 +1476,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.25"
+C.version = "0.26"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
