@@ -1,0 +1,2205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+  <TriggerPackage />
+  <TimerPackage />
+  <AliasPackage>
+    <AliasGroup isActive="yes" isFolder="yes">
+      <name>dgate_control</name>
+      <script />
+      <command />
+      <packageName>dgate_control</packageName>
+      <regex />
+      <AliasGroup isActive="yes" isFolder="yes">
+        <name>Kill Loops &amp; Combat</name>
+        <script />
+        <command />
+        <packageName />
+        <regex />
+        <Alias isActive="yes" isFolder="no">
+          <name>kill</name>
+          <script>dg.ctl.sendArg("k", matches[2])
+dg.ctl.sendArg("k", matches[2])
+dg.ctl.sendArg("k", matches[2])
+dg.ctl.sendArg("k", matches[2])
+dg.ctl.sendArg("k", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^kill(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>killing</name>
+          <script>dg.ctl.loopStart("killing", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^killing(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ki</name>
+          <script>dg.ctl.loopStart("killing", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ki(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>beat</name>
+          <script>dg.ctl.loopStart("beat", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^beat(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>thk</name>
+          <script>dg.ctl.loopStart("thk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^thk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>turning</name>
+          <script>dg.ctl.sendArg("turn", matches[2])
+dg.ctl.sendArg("turn", matches[2])
+dg.ctl.sendArg("turn", matches[2])
+dg.ctl.sendArg("turn", matches[2])
+dg.ctl.sendArg("turn", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^turning(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>boot</name>
+          <script>dg.ctl.send("ready boot")
+dg.ctl.send("k " .. (matches[2] or ""))
+dg.ctl.send("get boot")</script>
+          <command />
+          <packageName />
+          <regex>^boot(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>tk</name>
+          <script>dg.ctl.loopStart("tk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^tk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>bk</name>
+          <script>dg.ctl.loopStart("bk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^bk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>mk</name>
+          <script>dg.ctl.loopStart("mk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^mk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>tok</name>
+          <script>dg.ctl.loopStart("tok", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^tok(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>eatingsack</name>
+          <script>dg.ctl.loopStart("eatingsack", "")</script>
+          <command />
+          <packageName />
+          <regex>^eatingsack$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ppk</name>
+          <script>dg.ctl.loopStart("ppk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ppk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>pl</name>
+          <script>dg.ctl.loopStart("pl", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^pl(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ptpl</name>
+          <script>dg.ctl.loopStart("ptpl", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ptpl(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>dk</name>
+          <script>dg.ctl.loopStart("dk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^dk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>autohide</name>
+          <script>dg.ctl.loopStart("autohide", "")</script>
+          <command />
+          <packageName />
+          <regex>^autohide$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>pthide</name>
+          <script>dg.ctl.loopStart("pthide", "")</script>
+          <command />
+          <packageName />
+          <regex>^pthide$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>spk</name>
+          <script>dg.ctl.loopStart("spk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^spk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>spk2</name>
+          <script>dg.ctl.loopStart("spk2", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^spk2(?:\s+(.*))?$</regex>
+        </Alias>
+      </AliasGroup>
+      <AliasGroup isActive="yes" isFolder="yes">
+        <name>Inventory &amp; Shops</name>
+        <script />
+        <command />
+        <packageName />
+        <regex />
+        <Alias isActive="yes" isFolder="no">
+          <name>pack</name>
+          <script>dg.ctl.send("get " .. (matches[2] or ""))
+dg.ctl.send("put " .. (matches[2] or "") .. " in pack")</script>
+          <command />
+          <packageName />
+          <regex>^pack(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>back</name>
+          <script>dg.ctl.send("get " .. (matches[2] or ""))
+dg.ctl.send("put " .. (matches[2] or "") .. " in back")</script>
+          <command />
+          <packageName />
+          <regex>^back(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>carry</name>
+          <script>dg.ctl.send("get " .. (matches[2] or ""))
+dg.ctl.send("put " .. (matches[2] or "") .. " in carry")</script>
+          <command />
+          <packageName />
+          <regex>^carry(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>sell</name>
+          <script>dg.ctl.send("shop sell " .. (matches[2] or "") .. " confirm")</script>
+          <command />
+          <packageName />
+          <regex>^sell(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>hag</name>
+          <script>dg.ctl.send("shop hag sell " .. (matches[2] or "") .. " confirm")</script>
+          <command />
+          <packageName />
+          <regex>^hag(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>renew</name>
+          <script>dg.ctl.sendArg("shop renew", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^renew(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>finish</name>
+          <script>local from, to, item = matches[2], matches[3], matches[4]
+dg.ctl.send("get " .. item .. " from " .. from)
+dg.ctl.send("put " .. item .. " in " .. to)
+dg.ctl.send("drop " .. from)</script>
+          <command />
+          <packageName />
+          <regex>^finish\s+(\S+)\s+(\S+)\s+(\S+)$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>sr</name>
+          <script>dg.ctl.sendDual("search room", "search room for", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^sr(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>repair</name>
+          <script>dg.ctl.send("shop repair")</script>
+          <command />
+          <packageName />
+          <regex>^repair$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>loot</name>
+          <script>local o = matches[2] or ""
+tempTimer(8, function() dg.ctl.send("l in " .. o) end)
+dg.ctl.send("get " .. o)
+dg.ctl.send("open " .. o)
+dg.ctl.send("get coin from " .. o)</script>
+          <command />
+          <packageName />
+          <regex>^loot(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>skugz</name>
+          <script>local o = matches[2] or ""
+tempTimer(8, function() dg.ctl.send("l in " .. o) end)
+dg.ctl.send("get " .. o .. " from back")
+dg.ctl.send("shop unlock " .. o)
+dg.ctl.send("open " .. o)
+dg.ctl.send("get coin from " .. o)</script>
+          <command />
+          <packageName />
+          <regex>^skugz(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>aof</name>
+          <script>local who = (matches[2] or ""):gsub("^%s+", ""):gsub("%s+$", "")
+if who == "" then
+  dg.ctl.warn("aof NAME  (accept offer from NAME)")
+else
+  dg.ctl.send("accept offer from " .. who)
+end</script>
+          <command />
+          <packageName />
+          <regex>^aof(?:\s+(.*))?$</regex>
+        </Alias>
+      </AliasGroup>
+      <AliasGroup isActive="yes" isFolder="yes">
+        <name>Travel</name>
+        <script />
+        <command />
+        <packageName />
+        <regex />
+        <Alias isActive="yes" isFolder="no">
+          <name>spurgate</name>
+          <script>dg.ctl.send("unlock gate")
+dg.ctl.send("open gate")
+dg.ctl.send("go gate")</script>
+          <command />
+          <packageName />
+          <regex>^spurgate$</regex>
+        </Alias>
+      </AliasGroup>
+      <AliasGroup isActive="yes" isFolder="yes">
+        <name>Spells &amp; Actions</name>
+        <script />
+        <command />
+        <packageName />
+        <regex />
+        <Alias isActive="yes" isFolder="no">
+          <name>mist</name>
+          <script>dg.ctl.sendArg("invoke mist at", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^mist(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>misting</name>
+          <script>dg.ctl.sendArg("invoke mist at", matches[2])
+dg.ctl.sendArg("invoke mist at", matches[2])
+dg.ctl.sendArg("invoke mist at", matches[2])
+dg.ctl.sendArg("invoke mist at", matches[2])
+dg.ctl.sendArg("invoke mist at", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^misting(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>vigs</name>
+          <script>dg.ctl.sendDual("invoke vsphere", "invoke vsphere", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^vigs(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>vs</name>
+          <script>dg.ctl.sendDual("invoke vsphere", "invoke vsphere", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^vs(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>vm</name>
+          <script>dg.ctl.sendDual("invoke vmist", "invoke vmist", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^vm(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>hm</name>
+          <script>dg.ctl.sendDual("invoke hmist", "invoke hmist", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^hm(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>hs</name>
+          <script>dg.ctl.sendDual("invoke hsphere", "invoke hsphere", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^hs(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>healing</name>
+          <script>dg.ctl.sendDual("invoke hsphere", "invoke hsphere", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^healing(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>vring</name>
+          <script>dg.ctl.sendDual("invoke vring", "invoke vring", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^vring(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>hring</name>
+          <script>dg.ctl.sendDual("invoke hring", "invoke hring", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^hring(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>rez</name>
+          <script>dg.ctl.sendArg("pray sa res", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^rez(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>drake</name>
+          <script>dg.ctl.sendDual("invoke drake", "invoke drake", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^drake(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>detect</name>
+          <script>dg.ctl.sendDual("invoke small detect", "invoke small detect", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^detect(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>lbolt</name>
+          <script>dg.ctl.sendArg("invoke lbolt at", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^lbolt(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>wou</name>
+          <script>dg.ctl.sendArg("transfer wounds from", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^wou(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>wo</name>
+          <script>dg.ctl.sendArg("transfer wounds from", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^wo(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>chan</name>
+          <script>dg.ctl.sendArg("lay hands on", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^chan(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>cure</name>
+          <script>dg.ctl.sendArg("invoke cure at", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^cure(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>armor</name>
+          <script>dg.ctl.sendDual("invoke armor", "invoke armor", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^armor(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>protect</name>
+          <script>dg.ctl.sendDual("invoke protect", "invoke protect", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^protect(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>wrath</name>
+          <script>dg.ctl.sendDual("invoke curse", "invoke curse", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^wrath(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>dot</name>
+          <script>dg.ctl.sendDual("invoke dot", "invoke dot", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^dot(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>caring</name>
+          <script>dg.ctl.sendDual("invoke caring", "invoke caring", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^caring(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>gate</name>
+          <script>dg.ctl.sendDual("invoke gate", "invoke gate", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^gate(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>blind</name>
+          <script>dg.ctl.sendDual("invoke blind", "invoke blind", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^blind(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>lame</name>
+          <script>dg.ctl.send("lay hands on " .. (dg.ctl.me or ""))</script>
+          <command />
+          <packageName />
+          <regex>^lame$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>it</name>
+          <script>dg.ctl.sendDual("invoke it", "invoke it", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^it(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ht</name>
+          <script>dg.ctl.sendDual("invoke ht", "invoke ht", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ht(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>vt</name>
+          <script>dg.ctl.sendDual("invoke vt", "invoke vt", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^vt(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>weaken</name>
+          <script>dg.ctl.sendDual("invoke weak", "invoke weak", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^weaken(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>pres</name>
+          <script>dg.ctl.sendDual("invoke pres", "invoke pres", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^pres(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>dam</name>
+          <script>local rest = (matches[2] or ""):gsub("^%s+", ""):gsub("%s+$", "")
+local amount, target = "30", rest
+local lastWord = rest:match("(%S+)$")
+if lastWord and lastWord:match("^%d+$") and lastWord ~= rest then
+  amount = lastWord
+  target = rest:sub(1, #rest - #lastWord):gsub("%s+$", "")
+end
+dg.ctl.send("transfer damage from " .. target .. " " .. amount)</script>
+          <command />
+          <packageName />
+          <regex>^dam(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>heal</name>
+          <script>local target = matches[2] or ""
+if target == "" then dg.ctl.send("health")
+elseif target == "me" then dg.ctl.sendArg("invoke heal", dg.ctl.me or "")
+else dg.ctl.sendArg("invoke heal", target) end</script>
+          <command />
+          <packageName />
+          <regex>^heal(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>rejuv</name>
+          <script>dg.ctl.sendDual("invoke rejuv", "invoke restore", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^rejuv(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>blue</name>
+          <script>dg.ctl.sendDual("invoke blue2", "invoke blue", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^blue(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>trans</name>
+          <script>local args = matches[2] or ""
+local target, cmd = args, "invoke trans"
+local toTarget = args:match("^to%s+(.+)$")
+if toTarget then target, cmd = toTarget, "invoke trans2" end
+if target == "me" then target = dg.ctl.me or "" end
+dg.ctl.sendArg(cmd, target)</script>
+          <command />
+          <packageName />
+          <regex>^trans(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>pp</name>
+          <script>dg.ctl.sendDual("pickpocket", "pickpocket", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^pp(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>pain</name>
+          <script>dg.ctl.sendDual("invoke pain", "invoke pain", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^pain(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>acid</name>
+          <script>dg.ctl.sendDual("invoke acid", "invoke acid", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^acid(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ice</name>
+          <script>dg.ctl.sendDual("invoke ice", "invoke ice", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ice(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>burn</name>
+          <script>dg.ctl.sendDual("invoke burn", "invoke burn", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^burn(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>fire</name>
+          <script>dg.ctl.sendDual("invoke fire", "invoke fire", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^fire(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>chill</name>
+          <script>dg.ctl.sendDual("invoke chill", "invoke chill", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^chill(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>dust</name>
+          <script>dg.ctl.sendDual("invoke dust", "invoke dust", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^dust(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>nevig</name>
+          <script>dg.ctl.sendDual("invoke nevig", "invoke nevig", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^nevig(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>avig</name>
+          <script>dg.ctl.sendDual("invoke avig", "invoke avig", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^avig(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>evig</name>
+          <script>dg.ctl.sendDual("invoke evig", "invoke evig", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^evig(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>wvig</name>
+          <script>dg.ctl.sendDual("invoke wvig", "invoke wvig", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^wvig(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>fvig</name>
+          <script>dg.ctl.sendDual("invoke fvig", "invoke fvig", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^fvig(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>warstr</name>
+          <script>dg.ctl.sendDual("invoke warstr", "invoke warstr", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^warstr(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>brbstr</name>
+          <script>dg.ctl.sendDual("invoke brbstr", "invoke brbstr", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^brbstr(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>wardex</name>
+          <script>dg.ctl.sendDual("invoke wardex", "invoke wardex", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^wardex(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>brbdex</name>
+          <script>dg.ctl.sendDual("invoke brbdex", "invoke brbdex", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^brbdex(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>earth</name>
+          <script>dg.ctl.sendDual("invoke efist", "invoke efist", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^earth(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>efist</name>
+          <script>dg.ctl.sendDual("invoke efist", "invoke efist", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^efist(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>air</name>
+          <script>dg.ctl.sendDual("invoke airfist", "invoke airfist", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^air(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>afist</name>
+          <script>dg.ctl.sendDual("invoke airfist", "invoke airfist", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^afist(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>warfist</name>
+          <script>dg.ctl.sendDual("invoke warfist", "invoke warfist", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^warfist(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>brbfist</name>
+          <script>dg.ctl.sendDual("invoke brbfist", "invoke brbfist", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^brbfist(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>warshield</name>
+          <script>dg.ctl.sendDual("invoke warshie", "invoke warshie", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^warshield(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>brbshield</name>
+          <script>dg.ctl.sendDual("invoke brbshield", "invoke brbshield", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^brbshield(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>mirror</name>
+          <script>dg.ctl.sendDual("invoke mirror", "invoke mirror", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^mirror(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>chant</name>
+          <script>dg.ctl.sendDual("invoke chant", "invoke chant", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^chant(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>sneak</name>
+          <script>dg.ctl.sendDual("invoke sneak", "invoke sneak", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^sneak(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>fame</name>
+          <script>dg.ctl.loopStart("fame", "")</script>
+          <command />
+          <packageName />
+          <regex>^fame$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>fa</name>
+          <script>local who = (matches[2] or ""):gsub("^%s+", ""):gsub("%s+$", "")
+if who == "" then
+  dg.ctl.warn("fa NAME  (first aid on NAME; fame is first aid on yourself)")
+elseif who:lower() == "me" then
+  dg.ctl.loopStart("fame", "")
+else
+  dg.ctl.faTarget = who
+  dg.ctl.loopStart("fa", "")
+end</script>
+          <command />
+          <packageName />
+          <regex>^fa(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>drain</name>
+          <script>dg.ctl.sendArg("drain power from", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^drain(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>exam</name>
+          <script>dg.ctl.sendArg("psi exam at", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^exam(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>center</name>
+          <script>dg.ctl.sendDual("psi cntr", "psi cntr", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^center(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>dinv</name>
+          <script>dg.ctl.sendDual("psi dinv", "psi dinv", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^dinv(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>block</name>
+          <script>dg.ctl.sendDual("psi block", "psi block", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^block(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>dpsi</name>
+          <script>dg.ctl.sendDual("psi dpsi", "psi dpsi", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^dpsi(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>blast</name>
+          <script>dg.ctl.sendDual("invoke blast", "invoke blast", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^blast(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>bolt</name>
+          <script>if dg.ctl.class == "raptorian" then
+  for i = 1, 5 do dg.ctl.sendArg("invoke lbolt at", matches[2]) end
+else
+  dg.ctl.warn("bolt: no bolt spell known for " .. (dg.ctl.class or "your character") .. " -- add a branch in this alias")
+end</script>
+          <command />
+          <packageName />
+          <regex>^bolt(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>cloud</name>
+          <script>local c = dg.ctl.class
+if c == "raptorian" then dg.ctl.sendDual("invoke cloud at rap", "invoke cloud at", matches[2])
+elseif c == "kressa" then dg.ctl.sendDual("invoke cloud kressa", "invoke cloud", matches[2])
+elseif c == "tarvi" then dg.ctl.send("invoke cloud")
+else dg.ctl.warn("cloud: no cloud spell known for " .. (c or "your character")) end</script>
+          <command />
+          <packageName />
+          <regex>^cloud(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>don</name>
+          <script>local c, a = dg.ctl.class, matches[2] or ""
+dg.ctl.send("info rel")
+if c == "raptorian" then dg.ctl.send("donate " .. a .. " to sa")
+elseif c == "kressa" then dg.ctl.send("donate " .. a .. " to set")
+else dg.ctl.warn("don: no deity known for " .. (c or "your character")) end</script>
+          <command />
+          <packageName />
+          <regex>^don(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>pss</name>
+          <script>local c, a = dg.ctl.class, matches[2] or ""
+if c == "raptorian" then dg.ctl.sendArg("pray sa strengthen", a)
+elseif c == "kressa" then dg.ctl.sendArg("pray set strengthen", a)
+else dg.ctl.warn("pss: no deity known for " .. (c or "your character")) end</script>
+          <command />
+          <packageName />
+          <regex>^pss(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>sanc</name>
+          <script>local c = dg.ctl.class
+local who = matches[2] or ""
+if who == "" then who = "me" end
+if c == "raptorian" then dg.ctl.send("pray sa sanctuary " .. who)
+elseif c == "kressa" then dg.ctl.send("pray set sanctuary " .. who)
+else dg.ctl.warn("sanc: no deity known for " .. (c or "your character")) end</script>
+          <command />
+          <packageName />
+          <regex>^sanc(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>shield</name>
+          <script>local c, a = dg.ctl.class, matches[2] or ""
+if c == "raptorian" then dg.ctl.sendArg("invoke shield", a)
+elseif c == "kressa" then dg.ctl.sendArg("invoke warshie", a)
+else dg.ctl.warn("shield: no shield spell known for " .. (c or "your character")) end</script>
+          <command />
+          <packageName />
+          <regex>^shield(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>boost</name>
+          <script>local c, a = dg.ctl.class, matches[2] or ""
+if c == "raptorian" then dg.ctl.sendArg("invoke boost", a)
+elseif c == "kressa" then dg.ctl.sendArg("invoke wardex", a)
+else dg.ctl.warn("boost: no boost spell known for " .. (c or "your character")) end</script>
+          <command />
+          <packageName />
+          <regex>^boost(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>vig</name>
+          <script>local c = dg.ctl.class
+if c == "raptorian" then dg.ctl.sendArg("invoke vigor at", matches[2])
+elseif c == "kressa" then dg.ctl.send("invoke nevig")
+else dg.ctl.warn("vig: no vigor spell known for " .. (c or "your character")) end</script>
+          <command />
+          <packageName />
+          <regex>^vig(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>esp</name>
+          <script>local c = dg.ctl.class
+if c == "kressa" then dg.ctl.sendDual("invoke esp kressa", "invoke esp", matches[2])
+elseif c == "tarvi" then dg.ctl.sendArg("psi esp at", matches[2])
+else dg.ctl.warn("esp: no esp known for " .. (c or "your character")) end</script>
+          <command />
+          <packageName />
+          <regex>^esp(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>scan</name>
+          <script>local c, a = dg.ctl.class, matches[2] or ""
+if c == "kressa" then dg.ctl.sendArg("invoke scan", a)
+elseif c == "tarvi" then dg.ctl.sendArg("psi dinv", a)
+else dg.ctl.warn("scan: no scan known for " .. (c or "your character")) end</script>
+          <command />
+          <packageName />
+          <regex>^scan(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>dart</name>
+          <script>local c = dg.ctl.class
+if c == "kressa" then dg.ctl.sendArg("invoke dart", matches[2])
+elseif c == "tarvi" then dg.ctl.sendArg("psi dart at", matches[2])
+else dg.ctl.warn("dart: no dart known for " .. (c or "your character")) end</script>
+          <command />
+          <packageName />
+          <regex>^dart(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>slow</name>
+          <script>local c = dg.ctl.class
+if c == "raptorian" then dg.ctl.send("invoke slowspe")
+elseif c == "tarvi" then dg.ctl.sendArg("psi slow at", matches[2])
+else dg.ctl.warn("slow: no slow known for " .. (c or "your character")) end</script>
+          <command />
+          <packageName />
+          <regex>^slow(?:\s+(.*))?$</regex>
+        </Alias>
+      </AliasGroup>
+      <AliasGroup isActive="yes" isFolder="yes">
+        <name>Control</name>
+        <script />
+        <command />
+        <packageName />
+        <regex />
+        <Alias isActive="yes" isFolder="no">
+          <name>halt</name>
+          <script>dg.ctl.halt()</script>
+          <command />
+          <packageName />
+          <regex>^halt$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>target</name>
+          <script>dg.ctl.cmdTarget(matches[2] or "")</script>
+          <command />
+          <packageName />
+          <regex>^target(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>t2</name>
+          <script>dg.ctl.cmdT2(matches[2] or "")</script>
+          <command />
+          <packageName />
+          <regex>^t2(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>antiidle</name>
+          <script>dg.ctl.cmdAntiIdle(matches[2] or "")</script>
+          <command />
+          <packageName />
+          <regex>^antiidle(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>dgcfg</name>
+          <script>dg.ctl.cmdCfg(matches[2] or "")</script>
+          <command />
+          <packageName />
+          <regex>^dgcfg(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>dgh</name>
+          <script>dg.ctl.cmdStatus()</script>
+          <command />
+          <packageName />
+          <regex>^dgh$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>setme</name>
+          <script>dg.ctl.setMe(matches[2] or "")</script>
+          <command />
+          <packageName />
+          <regex>^setme(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>tl</name>
+          <script>dg.ctl.cmdTL(matches[2] or "")</script>
+          <command />
+          <packageName />
+          <regex>^tl(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>remtl</name>
+          <script>dg.ctl.cmdRemTL(matches[2] or "")</script>
+          <command />
+          <packageName />
+          <regex>^remtl(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>cltl</name>
+          <script>dg.ctl.cmdClTL()</script>
+          <command />
+          <packageName />
+          <regex>^cltl$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>disg</name>
+          <script>dg.ctl.cmdDisg(matches[2] or "")</script>
+          <command />
+          <packageName />
+          <regex>^disg(?:\s+(.*))?$</regex>
+        </Alias>
+      </AliasGroup>
+    </AliasGroup>
+  </AliasPackage>
+  <ActionPackage />
+  <ScriptPackage>
+    <ScriptGroup isActive="yes" isFolder="yes">
+      <name>dgate_control</name>
+      <packageName>dgate_control</packageName>
+      <script />
+      <eventHandlerList />
+      <ScriptGroup isActive="yes" isFolder="yes">
+        <name>DG Control</name>
+        <packageName />
+        <script />
+        <eventHandlerList />
+        <Script isActive="yes" isFolder="no">
+          <name>DG Control - highlights (data)</name>
+          <packageName />
+          <script>-- DG Control :: highlights (stub)
+-- Names, colours and highlight rules live in ONE shared file, dg_highlights.lua, not in this
+-- script. Edit that file, then type  dghl  in game to reload it. Don't edit this stub.
+-- (Desktop: D:/Documents/dglogs/Claude/dg-shared/   Laptop: &lt;your user folder&gt;/dg-control/)
+
+dg = dg or {}
+dg.ctlData = dg.ctlData or {}
+
+local function fileExists(p)
+  local f = io.open(p, "r")
+  if f then f:close(); return true end
+  return false
+end
+
+function dg.sharedDir()
+  local home = os.getenv("USERPROFILE") or os.getenv("HOME") or "."
+  local candidates = {
+    "D:/Documents/dglogs/Claude/dg-shared",
+    home:gsub("\\", "/") .. "/dg-control",
+  }
+  for _, d in ipairs(candidates) do
+    if fileExists(d .. "/dg_highlights.lua") then return d end
+  end
+  return candidates[#candidates]
+end
+
+dg.sharedHighlights = dg.sharedDir() .. "/dg_highlights.lua"
+
+function dg.loadSharedHighlights()
+  local ok, err = pcall(dofile, dg.sharedHighlights)
+  if not ok then
+    cecho("\n&lt;255,85,85&gt;[dg]&lt;reset&gt; could not load shared highlights: " .. tostring(err) .. "\n")
+    cecho("&lt;255,85,85&gt;[dg]&lt;reset&gt; expected file: " .. dg.sharedHighlights .. "\n")
+  end
+  return ok
+end
+
+dg.loadSharedHighlights()
+
+if dg.hlReloadAlias then killAlias(dg.hlReloadAlias) end
+dg.hlReloadAlias = tempAlias("^dghl$", function()
+  if dg.loadSharedHighlights() and dg.ctl and dg.ctl.initSoon then
+    dg.ctl.initSoon()
+    cecho("\n&lt;255,255,85&gt;[dg]&lt;reset&gt; shared highlights reloaded.\n")
+  end
+end)
+
+if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
+</script>
+          <eventHandlerList />
+        </Script>
+        <Script isActive="yes" isFolder="no">
+          <name>DG Control - loops (data)</name>
+          <packageName />
+          <script>-- DG Control :: loops (data only)
+--
+-- This is the one place combat-loop PATTERNS still live as Lua data, because a loop watches
+-- for several lines of game output and reacts to each -- that's genuinely too much to make
+-- into separate native triggers. Everything else (aliases, single commands, keys) is now a
+-- native Mudlet object you can browse in the Aliases/Keys tabs.
+--
+-- dg.ctlLoops[name] = { start = first command, rules = { {pattern, command} ... },
+--                        stop = { pattern | {pattern, command} }, qc = send "q c" first,
+--                        target = false for loops with no target }
+--   {t} = current target, {me} = your character name, '*' in a pattern = wildcard.
+-- A loop name that means something different per character uses:
+--   dg.ctlLoops[name] = { by_class = { raptorian = {...}, kressa = {...} } }
+--
+-- dg.ctlData.chars: character name -&gt; archetype key (used by dg.ctl.class and by any alias
+--   that branches per character, e.g. bolt, cloud). dg.ctlData.classKits: same, but keyed by
+--   the game's GMCP class name, for a character not listed by name yet.
+--
+-- Save this script after editing and everything rebuilds itself.
+
+dg = dg or {}
+dg.ctlData = dg.ctlData or {}
+local D = dg.ctlData
+
+D.chars = {
+  raptorian = "raptorian",
+  kressa    = "kressa",
+  tarvi     = "tarvi",
+}
+
+-- Optional: pick an archetype by class (from the game's GMCP status) for a character not
+-- listed above. The login line prints the class it sees, e.g. "char: Nyvar  class: Cleric
+-- archetype: nyvar" -&gt; add  cleric = "raptorian"  here so Nyvar's spells resolve like Raptorian's.
+D.classKits = {
+  -- cleric = "raptorian",
+}
+
+-- lines that end any targeted loop, for every character
+dg.ctlStops = { "but the*is dead", "I don't see what you are referring to" }
+
+-- weapon / punch rules shared by killing, beat and throwing
+local weaponRules = {
+  { "You swing your",                                   "k {t}" },
+  { "you throw your* at ",                              "throw spiked at {t}" },
+  { "you're too close",                                 "k {t}" },
+  { "you must move closer to your opponent's rank",     "k {t}" },
+}
+local beatRules = {
+  { "You kick at",                                      "kick {t}" },
+  { "You punch at",                                     "punch {t}" },
+  { "You cannot do that when both your hands are full.", "kick {t}" },
+  { "you must move closer to your opponent's rank",     "punch {t}" },
+}
+
+dg.ctlLoops = {
+
+  ------------------------------------------------------------ generic (every character)
+  killing = { qc = true, start = "k {t}",               rules = weaponRules },
+  beat    = { qc = true, start = "punch {t}",           rules = beatRules   },
+  thk     = { qc = true, start = "throw spiked at {t}", rules = weaponRules },
+
+  -- First aid on yourself:  fame.  Sends  treat {me}  and sends it again every time the game
+  -- says "You tend your wounds." {me} is whatever setme says, so a disguised character
+  -- just does  setme &lt;disguise name&gt;  first. halt / F4 stops it.
+  fame = {
+    target = false,
+    start = "treat {me}",
+    rules = { { "You tend your wounds.", "treat {me}" } },
+  },
+  -- First aid on someone else:  fa NAME  (fa me = fame). Same idea, aimed at NAME. It deliberately
+  -- does not use the kill target, so NAME is not painted as your enemy.
+  fa = {
+    target = false,
+    start = function() dg.ctl.send("treat " .. (dg.ctl.faTarget or "")) end,
+    -- PROVISIONAL wording: confirm what the game prints when you treat someone else
+    rules = { { "You tend *'s wounds",
+                function() dg.ctl.send("treat " .. (dg.ctl.faTarget or "")) end } },
+    stop = { "I don't see what you are referring to" },
+  },
+
+  autohide = {
+    target = false, start = "hide",
+    rules = { { "you fail in your attempt to hide", "hide" } },
+    stop  = { "you slip into the shadows" },
+  },
+
+  -- Stealth trainer. Hide until hidden, then: adv 1 until the front wall, ret, ret to the back,
+  -- repeat. If revealed at any point: q c, hide until hidden, resume where it left off.
+  -- Kressa / Katie / Kasper also keep SHADOW SLINKING up (the spell you memorized as "sneak", cast
+  -- with  invo sneak): cast first, and again whenever "The shadows cease to guide your movements"
+  -- shows. The cast reveals you, so the loop hides again afterwards. It waits out the cast using the
+  -- "[N sec. delay]" the game prints, so a changed casting time needs no edit here.
+  -- Only ONE command is ever in flight (the game's type-ahead queue is tiny and ret has a 3s
+  -- delay), so every command waits for the game's answer to the last one. Written as a factory
+  -- (make) so each `pthide` starts with fresh state; onStop cancels its timers on halt/F4.
+  pthide = {
+    target = false,
+    make = function()
+      local SLINK_CHARS = { kressa = true, katie = true, kasper = true }   -- who keeps shadow slinking up
+      local CFG = {
+        hide = "hide", adv = "adv 1", ret = "ret",
+        cast = "invo sneak",   -- the shadow slinking spell
+        castDelay = 20,        -- fallback wait if the game's "[N sec. delay]" line is missed
+        maxCasts  = 3,         -- give up casting after this many tries with no "shadows guide" reply
+        rets     = 2,     -- ret commands per trip to the back
+        delay    = 0.3,   -- pause after a game line before the next command
+        retDelay = 3.3,   -- ret carries a 3 sec delay; wait it out
+        stall    = 10,    -- seconds of silence before it re-evaluates and resends
+      }
+      local S = { on = true, hidden = false, mode = "adv", retLeft = 0, clear = false,
+                  useSlink = SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] == true,
+                  slink = false, casting = false, castSeen = false, casts = 0, warned = false }
+      local timer, watchdog
+
+      local function timersOff()
+        if timer    then killTimer(timer);    timer    = nil end
+        if watchdog then killTimer(watchdog); watchdog = nil end
+      end
+
+      local step  -- defined below
+
+      local function fire(cmd)
+        if S.clear then S.clear = false; dg.ctl.send("q c") end
+        dg.ctl.send(cmd)
+        watchdog = tempTimer(CFG.stall, function()
+          watchdog = nil
+          if S.on then
+            S.casting, S.castSeen = false, false
+            dg.ctl.say("pthide: no reply for " .. CFG.stall .. "s, retrying"); step(0)
+          end
+        end)
+      end
+
+      -- Schedule one command. A newer call replaces a pending one, so a burst of lines from a
+      -- single action (e.g. reveal + the move it interrupts) still produces a single command.
+      local function queue(cmd, wait)
+        if not S.on then return end
+        timersOff()
+        timer = tempTimer(wait or CFG.delay, function()
+          timer = nil
+          if S.on then fire(cmd) end
+        end)
+      end
+
+      step = function(wait)
+        if not S.on then return end
+        if S.casting then return end   -- a cast is in flight; its "[N sec. delay]" line resumes us
+        if S.useSlink and not S.slink then
+          if S.casts &lt; CFG.maxCasts then
+            S.casting, S.castSeen, S.casts = true, false, S.casts + 1
+            queue(CFG.cast, wait)
+            return
+          elseif not S.warned then
+            S.warned = true
+            dg.ctl.warn("pthide: shadow slinking did not take after " .. CFG.maxCasts .. " casts; training without it (halt and start again to retry)")
+          end
+        end
+        if not S.hidden then queue(CFG.hide, wait)
+        elseif S.mode == "adv" then queue(CFG.adv, wait)
+        else queue(CFG.ret, wait) end
+      end
+
+      -- A retreat answer counts even if we were just revealed (the move still happens).
+      local function retDone()
+        if S.mode ~= "ret" then return end
+        S.retLeft = S.retLeft - 1
+        if S.retLeft &lt;= 0 then S.mode = "adv" end
+        step(CFG.retDelay)
+      end
+
+      local def = {
+        target = false,
+        qc = true,
+        start = function() step(0) end,
+        onStop = function() S.on = false; timersOff() end,
+        rules = {
+          -- hiding
+          { "you slip into the shadows",            function() S.hidden = true;  step() end },
+          { "you are already unable to be seen",    function() S.hidden = true;  step() end },
+          { "you fail in your attempt to hide",     function() S.hidden = false; step() end },
+          { "you reveal yourself",                  function() S.hidden = false; S.clear = true; step() end },
+          -- walking to the front
+          { "you advance another",                  function() if S.mode == "adv" then step() end end },
+          { "you cannot advance further",           function()
+              if S.mode == "adv" then S.mode, S.retLeft = "ret", CFG.rets; step() end
+            end },
+          -- going to the back
+          { "you retreat",                          retDone },
+          { "you may not retreat any further",      retDone },
+          -- the game bounced a command: try again in a moment
+          { "type-ahead queue full",                function() step(2.5) end },
+        },
+      }
+
+      if S.useSlink then
+        local more = {
+          -- a cast finished: wait out the delay the game announces, then carry on
+          { "weaving those runes cost you",  function() if S.casting then S.castSeen = true end end },
+          { "sec. delay", function()
+              if S.casting and S.castSeen then
+                S.castSeen = false
+                local n = tonumber((line or (getCurrentLine and getCurrentLine()) or ""):match("(%d+)%s*sec")) or CFG.castDelay
+                -- hold until the cast is over, THEN decide (the "shadows guide" line arrives at the end)
+                timersOff()
+                timer = tempTimer(n + 1, function() timer = nil; S.casting = false; step(0) end)
+              end
+            end },
+          -- the spell is up / still up / gone
+          { "the shadows seem to guide your movements",   function() S.slink = true; S.casts = 0 end },
+          { "keeping up the shadow slinking on yourself", function() S.slink = true; S.casts = 0 end },
+          { "already seems to be a spell of that type",   function() S.slink = true; S.casting = false; step() end },
+          { "the shadows cease to guide your movements",  function() S.slink = false; S.casts = 0; step() end },
+        }
+        for _, r in ipairs(more) do def.rules[#def.rules + 1] = r end
+      end
+      return def
+    end,
+  },
+
+  ------------------------------------------------------------ Raptorian
+  tk = {   -- turn undead
+    qc = true, start = "turn {t}",
+    rules = { { "You call out the name of your deity", "turn {t}" } },
+    stop  = { { "The*is suddenly immobilized", "q c" },
+              { "The*writhes in great agony and is turned to dust!", "q c" },
+              { "It's called Turn undead ", "q c" } },
+  },
+  bk = {   -- lightning bolt
+    qc = true, start = "invoke lbolt at {t}",
+    rules = { { "Beams of celestial light begin to coalesce between {me}'s hands.", "invoke lbolt at {t}" } },
+  },
+  mk = {   -- mist
+    qc = true, start = "invoke mist at {t}",
+    rules = { { "{me} begins chanting softly to the heavens", "invoke mist at {t}" } },
+  },
+  tok = {  -- touch
+    qc = true, start = "invoke touch {t}",
+    rules = { { "{me}'s fingertips begin to glow with a pale green light.", "invoke touch {t}" } },
+  },
+  eatingsack = {
+    target = false, start = "eat sack",
+    rules = { { "you take a bite of your sack of sugar",             "eat sack" },
+              { "you take a bite of your half-eaten sack of sugar",  "eat sack" } },
+    stop  = { "you eat the last of your sack of sugar" },
+  },
+
+  ------------------------------------------------------------ Kressa
+  spk2 = {  -- fire / air / earth fist cycle
+    qc = true, start = "invoke fire {t}",
+    rules = {
+      { "{me}'s hand begins to glow with white-hot flames",                  "invoke airfist {t}" },
+      { "Swirling mist begins to gather around {me}'s clenched fist",        "invoke efist {t}" },
+      { "Particles of earth rise from the ground and surround {me}'s fist",  "invoke fire {t}" },
+    },
+  },
+  ppk = {   -- pickpocket practice
+    qc = true, start = "pickpocket {t}",
+    rules = {
+      { "You must move closer to your opponent's rank to engage in combat.", "pickpocket {t}" },
+      { "You blow your pickpocket attempt",     "pickpocket {t}" },
+      { "You grab a coinpurse from",            "pickpocket {t}" },
+      { "You fumbled that pickpocket attempt!", "pickpocket {t}" },
+    },
+    stop = { "Your target is staring right at you!" },
+  },
+  pl = {    -- pick a lock until it opens
+    start = "picklock {t} with lock",
+    rules = { { "You fail to pick the lock.", "picklock {t} with lock" } },
+    stop  = { "With a click, you succeed!" },
+  },
+  ptpl = {  -- pick, open, close, repeat (lockpick training)
+    start = "picklock {t} with lock",
+    rules = { { "You fail to pick the lock.", "picklock {t} with lock" },
+              { "With a click, you succeed!", "open {t};close {t};picklock {t} with lock" } },
+  },
+
+  ------------------------------------------------------------ Tarvi
+  dk = {    -- psi dart
+    qc = true, start = "psi dart at {t}",
+    rules = { { "{me}'s head suddenly begins glowing.",           "psi dart at {t}" },
+              { "You fail to focus your concentration properly.", "psi dart at {t}" } },
+    stop  = { "The dead make poor targets." },
+  },
+
+  ------------------------------------------------------------ spk means something different for
+  -- Kressa (casts dart, again each time the dart casting line shows), Tarvi (repeats a single
+  -- psi blast), and Raptorian (rotates lbolt/mist/touch -- built from the bk/mk/tok casting cues
+  -- above; the ROTATION ORDER is a guess, not verified from logs -- reorder or trim as needed).
+  spk = { by_class = {
+
+    raptorian = {
+      qc = true, start = "invoke lbolt at {t}",
+      rules = {
+        { "Beams of celestial light begin to coalesce between {me}'s hands.", "invoke mist at {t}" },
+        { "{me} begins chanting softly to the heavens",                      "invoke touch {t}" },
+        { "{me}'s fingertips begin to glow with a pale green light.",        "invoke lbolt at {t}" },
+      },
+    },
+
+    -- Kressa: dart, over and over. (The old DGR elemental cycle is no longer here; v0.19 still has it.)
+    kressa = {
+      qc = true, start = "invoke dart {t}",
+      rules = {
+        -- printed once per cast, only to you, whatever name you are wearing (so a disguise can't break it)
+        { "Weaving those runes cost you",                 "invoke dart {t}" },
+        { "you're too close",                             "invoke dart {t}" },
+        { "you must move closer to your opponent's rank", "invoke dart {t}" },
+      },
+    },
+
+    tarvi = {
+      qc = true, start = "invoke blast {t}",
+      rules = { { "{me} forms a triangle with both hands, framing*squarely in the middle of the resulting shape. The smell of ozone begins to permeate the area.", "invoke blast {t}" } },
+    },
+
+  } },
+}
+
+if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
+</script>
+          <eventHandlerList />
+        </Script>
+        <Script isActive="yes" isFolder="no">
+          <name>DG Control - engine</name>
+          <packageName />
+          <script>-- DG Control :: engine
+-- Aliases, triggers and keys are now native Mudlet objects (Aliases / Triggers / Keys tabs,
+-- organized in folders you can browse, edit and enable/disable yourself). This script is the
+-- small shared library they call into: character detection, the "loop until it's dead/gone"
+-- engine, highlight painting, and a couple of one-line helpers so a native alias's own script
+-- stays short. You should not need to edit this file for day-to-day changes -- edit the alias,
+-- trigger or key itself instead.
+
+dg = dg or {}
+dg.ctl = dg.ctl or {}
+local C = dg.ctl
+C.version = "0.25"
+
+---------------------------------------------------------------------------
+-- config (dgcfg in game)
+---------------------------------------------------------------------------
+C.cfg = C.cfg or {}
+local defaults = {
+  highlights  = true,   -- the colour rules in the highlights script (off = leave colouring to the HUD)
+  panels      = "auto", -- Thoughts + Arrivals floating windows. auto = on, unless the Dragons Gate HUD is installed
+  gagArrivals = true,   -- pull "just arrived / has left the world" out of the main window (only when panels are on)
+  gagChat     = false,  -- also pull thoughts/tells out of the main window (only when panels are on)
+  antiIdle    = true,   -- answer the 5-minute inactivity warning
+  idleCmd     = "look",
+  showSends   = false,  -- echo every command sent (debugging)
+}
+for k, v in pairs(defaults) do if C.cfg[k] == nil then C.cfg[k] = v end end
+
+C.rgb = {
+  alert  = {255,  85,  85},
+  speech = { 85, 255,  85},
+  speechDim = { 40, 150,  40},  -- darker green for say/ask/exclaim lines, so friend names (speech) stand out inside them
+  soft   = { 85, 255, 255},
+  move   = {255,  85, 255},
+  key    = {255, 255,  85},
+  dim    = {170, 170, 170},
+  orange = {255, 165,   0},
+  blue   = { 90, 140, 255},
+  wound  = {200,  95,  95},
+  gold   = {230, 190, 120},  -- closest friends/family: distinct from whisper/affection (soft/cyan)
+  scarlet = {255,  20, 147}, -- worst enemies: distinct from the many other red ("alert") line rules
+  temp   = {200, 255,   0},  -- temporary highlights (tl): lime, not used by anything else
+}
+
+C.ids = C.ids or {}
+C.targets = C.targets or {}
+C.me = C.me or nil
+C.class = C.class or nil
+
+---------------------------------------------------------------------------
+-- small helpers
+---------------------------------------------------------------------------
+local function trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
+local function reEsc(s) return (s:gsub("[%^%$%(%)%.%[%]%+%-%?%{%}%|\\%*]", "\\%0")) end
+-- zMUD-style glob: '*' = anything, everything else literal
+local function glob(s) return (reEsc(s):gsub("\\%*", ".*")) end
+C.glob = glob
+
+local function curLine()
+  return line or (getCurrentLine and getCurrentLine()) or ""
+end
+
+function C.say(msg)  decho("\n&lt;255,255,85&gt;[dg]&lt;r&gt; " .. msg .. "\n") end
+function C.warn(msg) decho("\n&lt;255,85,85&gt;[dg]&lt;r&gt; " .. msg .. "\n") end
+
+function C.track(group, kind, id)
+  if id then
+    C.ids[group] = C.ids[group] or {}
+    table.insert(C.ids[group], { kind, id })
+  end
+  return id
+end
+
+function C.kill(group)
+  for _, e in ipairs(C.ids[group] or {}) do
+    local kind, id = e[1], e[2]
+    if kind == "trigger" then pcall(killTrigger, id) end
+  end
+  C.ids[group] = {}
+end
+
+function C.trig(group, rx, fn)
+  local ok, id = pcall(tempRegexTrigger, rx, fn)
+  if not ok or not id then C.warn("trigger failed: /" .. rx .. "/ " .. tostring(id)); return nil end
+  return C.track(group, "trigger", id)
+end
+
+---------------------------------------------------------------------------
+-- helpers a native ALIAS's own tiny script can call
+---------------------------------------------------------------------------
+-- dg.ctl.send(cmd) -- a single command, honouring the showSends debug setting
+function C.send(cmd)
+  cmd = trim(cmd)
+  if cmd == "" then return end
+  send(cmd, C.cfg.showSends)
+end
+
+function C.sendAll(list) for _, c in ipairs(list or {}) do C.send(c) end end
+
+function C.split(s)
+  local out = {}
+  for part in tostring(s):gmatch("[^;]+") do
+    local c = trim((part:gsub("%s+", " ")))
+    if c ~= "" then out[#out + 1] = c end
+  end
+  return out
+end
+
+-- dg.ctl.sendArg("invoke lbolt at", matches[2]) -&gt; sends "invoke lbolt at &lt;what you typed&gt;"
+function C.sendArg(prefix, arg)
+  local cmd = trim(prefix .. " " .. (arg or ""))
+  C.send(cmd)
+end
+
+-- dg.ctl.sendDual("health", "invoke heal", matches[2]) -&gt; no target: send("health"); with a target: sendArg("invoke heal", target)
+function C.sendDual(noargCmd, argPrefix, arg)
+  arg = trim(arg or "")
+  if arg ~= "" then C.sendArg(argPrefix, arg) else C.send(noargCmd) end
+end
+
+---------------------------------------------------------------------------
+-- highlights (unchanged mechanics; rules live in the highlights script)
+---------------------------------------------------------------------------
+function C.hlLine(rgbName)
+  local rgb = C.rgb[rgbName] or rgbName
+  selectCurrentLine()
+  setFgColor(unpack(rgb))
+  deselect()
+  resetFormat()
+end
+
+local function isWordChar(ch) return ch ~= "" and ch:match("[%w_]") ~= nil end
+
+function C.hlWords(list, rgbName, bound, exactCase)
+  local rgb = C.rgb[rgbName] or rgbName
+  local text = curLine()
+  local low = exactCase and text or text:lower()
+  for _, w in ipairs(list) do
+    local wl = exactCase and w or w:lower()
+    local init = 1
+    while true do
+      local s, e = low:find(wl, init, true)
+      if not s then break end
+      local okL = (not bound) or not isWordChar(low:sub(s - 1, s - 1))
+      local okR = (not bound) or not isWordChar(low:sub(e + 1, e + 1))
+      if okL and okR then
+        selectSection(s - 1, e - s + 1)
+        setFgColor(unpack(rgb))
+      end
+      init = e + 1
+    end
+  end
+  deselect()
+  resetFormat()
+end
+
+function C.gate(h)
+  local alts = {}
+  for _, p in ipairs(h.words or h.lines or {}) do alts[#alts + 1] = glob(p) end
+  for _, p in ipairs(h.rx or {}) do alts[#alts + 1] = p end
+  local body = "(?:" .. table.concat(alts, "|") .. ")"
+  if h.bound then body = "\\b" .. body .. "\\b" end
+  return "(?i)" .. body
+end
+
+function C.hlNames()
+  for i = 2, #matches do
+    local n = matches[i]
+    if n and n ~= "" and n:lower() ~= "you" then C.hlWords({ n }, "key", true) end
+  end
+end
+
+-- Paint order (later paints over earlier):  whole-line rules -&gt; single words -&gt; people lists -&gt; targets
+function C.buildHighlights()
+  C.kill("hl")
+  local D = dg.ctlData
+  if C.cfg.highlights ~= false then
+    local function add(h)
+      if not C.rgb[h.color] then C.warn("highlight '" .. tostring(h.name) .. "': unknown colour " .. tostring(h.color)); return end
+      if h.words then
+        C.trig("hl", C.gate(h), function() C.hlWords(h.words, h.color, h.bound) end)
+      else
+        C.trig("hl", C.gate(h), function() C.hlLine(h.color) end)
+      end
+    end
+    for _, h in ipairs(D.highlights or {}) do if not h.words then add(h) end end
+    for _, h in ipairs(D.highlights or {}) do if h.words then add(h) end end
+    for _, g in ipairs(D.names or {}) do
+      if not C.rgb[g.color] then
+        C.warn("names '" .. tostring(g.label) .. "': unknown colour " .. tostring(g.color))
+      elseif #(g.names or {}) &gt; 0 then
+        local alts = {}
+        for _, n in ipairs(g.names) do alts[#alts + 1] = reEsc(n) end
+        C.trig("hl", "\\b(?:" .. table.concat(alts, "|") .. ")\\b", function() C.hlWords(g.names, g.color, true, true) end)
+      end
+    end
+    -- disguises: your disguisable characters, the names they are wearing now, and your standing list
+    local dn = C.disguiseNames()
+    local dcol = (D.disguise and D.disguise.color) or "move"
+    if #dn &gt; 0 and C.rgb[dcol] then
+      local alts = {}
+      for _, n in ipairs(dn) do alts[#alts + 1] = reEsc(n) end
+      C.trig("hl", "\\b(?:" .. table.concat(alts, "|") .. ")\\b", function() C.hlWords(dn, dcol, true, true) end)
+    end
+  end
+  C.setTarget(1, C.targets[1] or "")
+  C.setTarget(2, C.targets[2] or "")
+  C.buildTemp()   -- last, so temporary highlights paint over everything else
+end
+
+function C.setTarget(slot, name)
+  C.targets[slot] = trim(name)
+  C.kill("target")
+  for _, t in pairs(C.targets) do
+    local tok = t:match("(%S+)$")
+    if tok then
+      C.trig("target", "(?i)\\b(" .. reEsc(tok) .. "\\w*)", function()
+        C.hlWords({ matches[2] }, "alert", false)
+      end)
+    end
+  end
+end
+
+---------------------------------------------------------------------------
+-- disguises (data lives in the highlights script: dg.ctlData.disguise)
+---------------------------------------------------------------------------
+-- Ask the game who we are disguised as, once per character per session. The reply ("You are
+-- disguised as ...") is captured by the trigger in C.init. Needed after control is loaded or
+-- re-imported while you are already logged in: the login check has long since passed.
+function C.syncDisguise()
+  if not C.char or C.disgAsked == C.char then return end
+  C.disgAsked = C.char
+  C.send("info disguise")
+end
+
+function C.realName()
+  return C.char and (C.char:sub(1, 1):upper() .. C.char:sub(2):lower()) or nil
+end
+
+-- every name that should light up as a disguise: your disguisable characters, who each one is
+-- wearing right now, and the standing list of common disguises
+function C.disguiseNames()
+  local d = (dg.ctlData and dg.ctlData.disguise) or {}
+  local out, seen = {}, {}
+  local function add(n)
+    n = trim(n)
+    if n ~= "" and not seen[n] then seen[n] = true; out[#out + 1] = n end
+  end
+  for char, dis in pairs(d.chars or {}) do
+    if tostring(char):match("^%a") then add(char) end
+    add(dis)
+  end
+  for _, n in ipairs(d.common or {}) do add(n) end
+  return out
+end
+
+-- called with the first name from "You are disguised as Ferrets Down, a Female San Elf Thief."
+function C.onDisguise(name)
+  name = trim(name)
+  if name == "" then return end
+  local D = dg.ctlData
+  D.disguise = D.disguise or {}
+  D.disguise.chars = D.disguise.chars or {}
+  local meChanged = C.me ~= name
+  C.disgAsked = C.char
+  C.me = name   -- from here on "me" (lame, fame, heal me, {me} in loops) is the disguise
+  -- paint it on this very line (the rebuilt highlight triggers only see the NEXT line)
+  if C.cfg.highlights ~= false then
+    C.hlWords({ name }, D.disguise.color or "move", true, true)
+  end
+  local who = C.realName() or "?"
+  if D.disguise.chars[who] == name then
+    if meChanged then C.say("me = " .. name .. "   (disguise of " .. who .. ")") end
+    return
+  end
+  D.disguise.chars[who] = name
+  C.buildHighlights()
+  C.say("disguise: " .. who .. " is " .. name .. "   (me = " .. name .. ")")
+end
+
+function C.cmdDisg(args)
+  args = trim(args):lower()
+  local D = dg.ctlData
+  D.disguise = D.disguise or {}
+  D.disguise.chars = D.disguise.chars or {}
+  if args == "clear" then
+    local who = C.realName()
+    if who then
+      D.disguise.chars[who] = ""
+      C.me = who
+      C.buildHighlights()
+      C.say("disguise cleared for " .. who .. "   (me = " .. who .. ")")
+    else
+      C.warn("disg clear: no character known yet")
+    end
+    return
+  end
+  local keys = {}
+  for k in pairs(D.disguise.chars) do keys[#keys + 1] = k end
+  table.sort(keys)
+  C.say("disguises (edit the list in the highlights script):")
+  for _, k in ipairs(keys) do
+    local v = D.disguise.chars[k]
+    decho("   " .. k .. " = " .. ((v and v ~= "") and v or "-") .. "\n")
+  end
+  decho("   common: " .. (#(D.disguise.common or {}) &gt; 0 and table.concat(D.disguise.common, ", ") or "-") .. "\n")
+end
+
+---------------------------------------------------------------------------
+-- setme: say who "me" is for lame / heal me / trans me / the {me} in loop patterns.
+-- A real function as well as an alias, so triggers can call setme("Name") directly.
+-- It changes the name only; the archetype (class) stays as detected, unless the name is a
+-- character listed in the loops script, in which case it is treated as a full character switch.
+---------------------------------------------------------------------------
+function C.setMe(name)
+  name = trim(name)
+  local D = dg.ctlData or {}
+  if name == "" then
+    local real = C.realName()
+    C.say("me = " .. (C.me or "?") .. ((real and C.me ~= real) and ("   (disguise; real char: " .. real .. ")") or "") ..
+          "   archetype: " .. (C.class or "?") .. "   (setme NAME to change, setme reset to go back)")
+    return
+  end
+  if name:lower() == "reset" then
+    if C.char then C.me = C.realName() end
+    C.say("me = " .. (C.me or "?"))
+    return
+  end
+  if D.chars and D.chars[name:lower()] then
+    C.setChar(name)
+    return
+  end
+  C.me = name
+  C.say("me = " .. name .. "   (archetype stays " .. (C.class or "?") .. ")")
+end
+
+function setme(name) return dg.ctl.setMe(name) end
+
+---------------------------------------------------------------------------
+-- temporary highlights:  tl WORD  add   remtl WORD  remove   cltl  clear   tl  list
+-- The list is dg.ctlData.tempHL (also editable in the highlights script).
+---------------------------------------------------------------------------
+-- Temporary highlights have to beat DGHud's colours. DGHud paints each line from its own
+-- catch-all trigger, and whichever trigger was created LAST paints last -- which flips if the
+-- HUD starts after control or is reloaded. So paint now, and again a moment later (a 0-second
+-- timer runs after every trigger has finished with the line), going back to the line by number.
+function C.paintTemp(n, text)
+  local words = {}
+  for _, w in ipairs((dg.ctlData and dg.ctlData.tempHL) or {}) do
+    w = trim(w)
+    if w ~= "" then words[#words + 1] = w end
+  end
+  if #words == 0 or not n then return end
+  local cur, col = getLineNumber(), getColumnNumber()
+  if moveCursor(0, n) and getCurrentLine() == text then
+    C.hlWords(words, "temp", false)
+  end
+  moveCursor(col, cur)
+end
+
+function C.buildTemp()
+  C.kill("tl")
+  local alts, words = {}, {}
+  for _, w in ipairs((dg.ctlData and dg.ctlData.tempHL) or {}) do
+    w = trim(w)
+    if w ~= "" then alts[#alts + 1] = reEsc(w); words[#words + 1] = w end
+  end
+  if #alts == 0 then return end
+  C.trig("tl", "(?i)(?:" .. table.concat(alts, "|") .. ")", function()
+    C.hlWords(words, "temp", false)
+    local n = getLineNumber and getLineNumber()
+    if n then
+      local text = getCurrentLine()
+      tempTimer(0, function() pcall(C.paintTemp, n, text) end)
+    end
+  end)
+end
+
+local function tlShow()
+  local list = dg.ctlData.tempHL
+  if #list == 0 then C.say("temp highlights: none   (tl WORD to add)")
+  else C.say("temp highlights: " .. table.concat(list, ", ")) end
+end
+
+function C.cmdTL(args)
+  args = trim(args)
+  local D = dg.ctlData
+  D.tempHL = D.tempHL or {}
+  if args == "" then tlShow(); return end
+  local low = args:lower()
+  for _, w in ipairs(D.tempHL) do
+    if w:lower() == low then C.say("already on the list: " .. w); return end
+  end
+  D.tempHL[#D.tempHL + 1] = args
+  C.buildTemp()
+  C.say("tl + " .. args)
+end
+
+function C.cmdRemTL(args)
+  args = trim(args)
+  local D = dg.ctlData
+  D.tempHL = D.tempHL or {}
+  if args == "" then tlShow(); return end
+  local low, kept, gone = args:lower(), {}, false
+  for _, w in ipairs(D.tempHL) do
+    if w:lower() == low then gone = true else kept[#kept + 1] = w end
+  end
+  D.tempHL = kept
+  C.buildTemp()
+  C.say(gone and ("tl - " .. args) or ("not on the list: " .. args))
+end
+
+function C.cmdClTL()
+  dg.ctlData.tempHL = {}
+  C.buildTemp()
+  C.say("temp highlights cleared")
+end
+
+---------------------------------------------------------------------------
+-- Thoughts / Arrivals windows
+---------------------------------------------------------------------------
+C.wins = C.wins or {}
+function C.hudInstalled() return type(DGHUD) == "table" end
+
+function C.panelsOn()
+  local p = C.cfg.panels
+  if p == "auto" then return not C.hudInstalled() end
+  return p == true
+end
+
+function C.win(name)
+  if not C.panelsOn() then return nil end
+  if C.wins[name] == nil then
+    local ok = pcall(openUserWindow, name)
+    C.wins[name] = ok and true or false
+  end
+  return C.wins[name] and name or nil
+end
+
+function C.toWin(name, rgbName, text)
+  local w = C.win(name)
+  if not w then return end
+  local rgb = C.rgb[rgbName] or rgbName
+  decho(w, string.format("&lt;%d,%d,%d&gt;%s&lt;r&gt;\n", rgb[1], rgb[2], rgb[3], text))
+end
+
+local chatDefs = {
+  { rx = "(\\w[\\w'-]*) thinks to you,(.*)$",            label = "Private", color = "soft"  },
+  { rx = "You pick up (\\w[\\w'-]*)'s mental link,(.*)$", label = "LINK",    color = "soft"  },
+  { rx = "You pick up (\\w[\\w'-]*)'s thoughts,(.*)$",    label = "ESP",     color = "soft"  },
+  { rx = "(\\w[\\w'-]*) sends:(.*)$",                     label = "ELDER",   color = "alert" },
+}
+
+function C.buildChat()
+  C.kill("chat")
+  for _, d in ipairs(chatDefs) do
+    C.trig("chat", d.rx, function()
+      C.toWin("Thoughts", d.color, matches[2] .. " (" .. d.label .. "):" .. (matches[3] or ""))
+      if C.cfg.gagChat and C.panelsOn() then deleteLine() end
+    end)
+  end
+  local arr = "^[\\s\\*]*(.+?)\\s+(just arrived in the world|has left the world unexpectedly|has left the world)\\."
+  C.trig("chat", arr, function()
+    local who, what = matches[2], matches[3]
+    local verb = (what:find("unexpectedly") and "disco'd") or (what:find("left") and "left") or "arrived"
+    C.toWin("Arrivals", "dim", who .. " " .. verb .. " at " .. os.date("%I:%M %p"))
+    if C.cfg.gagArrivals and C.panelsOn() then deleteLine() else C.hlLine("dim") end
+  end)
+end
+
+---------------------------------------------------------------------------
+-- character detection: sets dg.ctl.me (display name) and dg.ctl.class (a key your aliases
+-- can check, e.g. "raptorian"/"kressa"/"tarvi"). See the loops script for the name/class
+-- lookup tables (dg.ctlData.chars, dg.ctlData.classKits).
+---------------------------------------------------------------------------
+local function gmcpStatus()
+  local st = gmcp and gmcp.Char and gmcp.Char.Status
+  if type(st) == "table" and type(st.name) == "string" and st.name ~= "" then return st end
+  return nil
+end
+
+local function classFor(name, gmcpClass)
+  local D = dg.ctlData
+  return (D.chars and D.chars[name:lower()])
+      or (gmcpClass and D.classKits and D.classKits[gmcpClass:lower()])
+      or name:lower()
+end
+
+function C.setChar(name)
+  local st = gmcpStatus()
+  C.gmcpClass = (st and st.name:lower() == name:lower() and st.class) and trim(st.class) or nil
+  C.char = name
+  C.me = name:sub(1, 1):upper() .. name:sub(2):lower()
+  C.class = classFor(name, C.gmcpClass)
+  pcall(raiseEvent, "dgCharChanged", C.me)
+  C.say("char: " .. C.me .. (C.gmcpClass and ("   class: " .. C.gmcpClass) or "") ..
+        "   archetype: " .. (C.class or "?"))
+end
+
+function C.onStatus()
+  local st = gmcpStatus()
+  if not st then return end
+  if C.char and C.char:lower() == st.name:lower() then return end
+  C.setChar(st.name)
+  tempTimer(2, function() C.syncDisguise() end)
+end
+
+---------------------------------------------------------------------------
+-- loop engine ("do X until it's dead or gone")
+--   dg.ctlLoops[name] = { start=.., rules={{pattern,cmd}...}, stop={..}, target=false, qc=true }
+--   or, when the same loop name means something different per character:
+--   dg.ctlLoops[name] = { by_class = { raptorian = {...}, kressa = {...} } }
+--   {t} = current target, {me} = your character name in a pattern/command; '*' = wildcard.
+--   Loops that need memory (pthide) can: use a function instead of a command string in a rule or
+--   in `start`; add `onStop = function() ... end` (runs on halt/F4/done, e.g. to cancel timers);
+--   and be written as `make = function() ... return def end`, called fresh on every start.
+---------------------------------------------------------------------------
+local function subst(s, t)
+  s = s:gsub("{t}", function() return t or "" end)
+  s = s:gsub("{me}", function() return C.me or "" end)          -- the name you are going by (disguise if any)
+  s = s:gsub("{char}", function() return C.realName() or "" end) -- the real character, always
+  return s
+end
+
+-- Regex for a game-text pattern. {me} in a PATTERN matches the name you are going by, or your real
+-- name, each optionally followed by a surname -- the game's wording while disguised can't be
+-- assumed ("Ferrets's", "Ferrets Down's", "Kressa's" all match).
+function C.meRx()
+  local names, seen = {}, {}
+  for _, n in ipairs({ C.me or "", C.realName() or "" }) do
+    n = trim(n)
+    if n ~= "" and not seen[n:lower()] then seen[n:lower()] = true; names[#names + 1] = reEsc(n) end
+  end
+  if #names == 0 then return "" end
+  return "(?:" .. table.concat(names, "|") .. ")(?: \\w+)?"
+end
+
+function C.patRx(pat, t)
+  pat = pat:gsub("{t}", function() return t or "" end)
+  pat = pat:gsub("{char}", function() return C.realName() or "" end)
+  local out, pos = {}, 1
+  while true do
+    local a, b = pat:find("{me}", pos, true)
+    if not a then out[#out + 1] = glob(pat:sub(pos)); break end
+    out[#out + 1] = glob(pat:sub(pos, a - 1))
+    out[#out + 1] = C.meRx()
+    pos = b + 1
+  end
+  return table.concat(out)
+end
+
+function C.loopDef(name)
+  local L = dg.ctlLoops and dg.ctlLoops[name]
+  if L and L.make then L = L.make() end   -- factory: builds a fresh def (with its own state) on every start
+  if L and L.by_class then
+    local byClass = L.by_class[C.class]
+    if not byClass then C.warn(name .. ": no version of this loop for '" .. (C.class or "?") .. "' yet -- add one under " .. name .. " (by_class) in the loops script, or map this character to an existing archetype in D.chars") end
+    return byClass
+  end
+  return L
+end
+
+function C.loopStop(reason, cmd)
+  local cur = C.loopCur
+  C.kill("loop")
+  C.loopCur = nil
+  if cur and cur.onStop then pcall(cur.onStop) end
+  if cur then
+    if cmd and cmd ~= "" then C.sendAll(C.split(cmd)) end
+    C.say("loop off: " .. cur.name .. (reason and (" (" .. reason .. ")") or ""))
+  end
+end
+
+function C.halt()
+  C.loopStop("halt")
+  C.send("q c")
+end
+
+function C.loopStart(name, args)
+  local L = C.loopDef(name)
+  if not L then return end
+  args = trim(args or "")
+
+  local t = nil
+  if L.target ~= false then
+    t = (args ~= "") and args or C.lastTarget
+    if not t or t == "" then C.warn(name .. ": needs a target, e.g.  " .. name .. " orc"); return end
+    C.lastTarget = t
+    C.setTarget(1, t)
+  end
+
+  C.loopStop()
+  C.loopCur = { name = name, target = t, onStop = L.onStop }
+
+  for _, r in ipairs(L.rules or {}) do
+    local rx = "(?i)" .. C.patRx(r[1], t)
+    local cmd = r[2]
+    C.trig("loop", rx, function()
+      if type(cmd) == "function" then cmd(t) else C.sendAll(C.split(subst(cmd, t))) end
+    end)
+  end
+
+  local stops = {}
+  if L.target ~= false then
+    for _, s in ipairs(dg.ctlStops or {}) do stops[#stops + 1] = s end
+  end
+  for _, s in ipairs(L.stop or {}) do stops[#stops + 1] = s end
+  for _, s in ipairs(stops) do
+    local pat, cmd = s, nil
+    if type(s) == "table" then pat, cmd = s[1], s[2] end
+    C.trig("loop", "(?i)" .. C.patRx(pat, t), function() C.loopStop("done", cmd) end)
+  end
+
+  if L.qc then C.send("q c") end
+  if type(L.start) == "function" then L.start(t) else C.sendAll(C.split(subst(L.start or "", t))) end
+  C.say("loop on: " .. name .. (t and (" vs " .. t) or "") .. "   (halt / F4 to stop)")
+end
+
+---------------------------------------------------------------------------
+-- control commands (called from the small native aliases in the Control folder)
+---------------------------------------------------------------------------
+function C.cmdTarget(args)
+  if trim(args) == "" then C.say("target: " .. (C.targets[1] or "-") .. "   t2: " .. (C.targets[2] or "-"))
+  else C.setTarget(1, args) end
+end
+
+function C.cmdT2(args)
+  if trim(args) == "" then C.say("t2: " .. (C.targets[2] or "-"))
+  else C.setTarget(2, args) end
+end
+
+function C.cmdAntiIdle(args)
+  args = trim(args):lower()
+  if args == "off" then C.cfg.antiIdle = false elseif args == "on" then C.cfg.antiIdle = true end
+  C.say("anti-idle " .. (C.cfg.antiIdle and "on" or "off") .. " (sends '" .. C.cfg.idleCmd .. "')")
+end
+
+function C.cmdCfg(args)
+  local k, v = args:match("^(%S+)%s+(%S+)$")
+  if not k then
+    local keys = {}
+    for kk, vv in pairs(C.cfg) do keys[#keys + 1] = kk .. "=" .. tostring(vv) end
+    table.sort(keys)
+    C.say("cfg: " .. table.concat(keys, "  ") .. "   (dgcfg KEY on|off|auto|VALUE)")
+    return
+  end
+  if C.cfg[k] == nil then C.warn("unknown cfg key: " .. k); return end
+  if v == "on" then v = true elseif v == "off" then v = false end
+  C.cfg[k] = v
+  if k == "highlights" then C.buildHighlights() end
+  C.say(k .. " = " .. tostring(v))
+end
+
+function C.cmdStatus()
+  C.say("DG Control " .. C.version .. "   char: " .. (C.me or "?") .. "   archetype: " .. (C.class or "?") ..
+        "   loop: " .. (C.loopCur and C.loopCur.name or "none"))
+  decho("&lt;255,255,85&gt;mode:&lt;r&gt; HUD " .. (C.hudInstalled() and "detected" or "not detected") ..
+        ", floating windows " .. (C.panelsOn() and "on" or "off") ..
+        ", highlights " .. (C.cfg.highlights == false and "off" or "on") .. "\n")
+end
+
+---------------------------------------------------------------------------
+-- init (idempotent; safe to re-run)
+---------------------------------------------------------------------------
+function C.init()
+  local D = dg.ctlData
+  if not D then C.warn("data scripts not loaded yet"); return end
+
+  C.kill("sys")
+  C.trig("sys", "Welcome to Dragon's Gate, (\\w+)", function() C.setChar(matches[2]); C.disgAsked = C.char end)
+  -- the HUD's login info check prints "You are disguised." -&gt; ask for the details too
+  C.trig("sys", "You are disguised\\.", function()
+    local now = os.time()
+    C.disgAsked = C.char   -- the HUD's check is already asking; no separate sync needed
+    if C._lastDisg and now - C._lastDisg &lt; 2 then return end
+    C._lastDisg = now
+    C.send("info disguise")
+  end)
+  -- ...and the answer: "You are disguised as Ferrets Down, a Female San Elf Thief."
+  C.trig("sys", "You are disguised as ([^\\s,]+)", function() C.onDisguise(matches[2]) end)
+  if not C.gmcpHandler then
+    C.gmcpHandler = registerAnonymousEventHandler("gmcp.Char.Status", function() C.onStatus() end)
+  end
+  C.onStatus()
+  tempTimer(1, function() C.syncDisguise() end)   -- control loaded mid-session: learn the disguise now
+
+  C.buildHighlights()
+  C.buildChat()
+  if not C.evHandler then
+    C.evHandler = registerAnonymousEventHandler("sysDisconnectionEvent", function() C.loopStop("disconnected") end)
+  end
+  C.say("DG Control " .. C.version .. " loaded.  aliases/triggers/keys are native now -- browse the Aliases tab.")
+end
+
+function C.initSoon()
+  if C._pending then return end
+  C._pending = true
+  tempTimer(0, function() C._pending = false; C.init() end)
+end
+
+C.initSoon()
+</script>
+          <eventHandlerList />
+        </Script>
+      </ScriptGroup>
+    </ScriptGroup>
+  </ScriptPackage>
+  <KeyPackage>
+    <KeyGroup isActive="yes" isFolder="yes">
+      <name>dgate_control</name>
+      <packageName>dgate_control</packageName>
+      <script />
+      <command />
+      <keyCode>33554431</keyCode>
+      <keyModifier>0</keyModifier>
+      <Key isActive="yes" isFolder="no">
+        <name>F1 - diag all</name>
+        <packageName />
+        <script>dg.ctl.send("diag all")</script>
+        <command />
+        <keyCode>16777264</keyCode>
+        <keyModifier>0</keyModifier>
+      </Key>
+      <Key isActive="yes" isFolder="no">
+        <name>Alt+F1 - diag group</name>
+        <packageName />
+        <script>dg.ctl.send("diag group")</script>
+        <command />
+        <keyCode>16777264</keyCode>
+        <keyModifier>134217728</keyModifier>
+      </Key>
+      <Key isActive="yes" isFolder="no">
+        <name>F4 - halt</name>
+        <packageName />
+        <script>dg.ctl.halt()</script>
+        <command />
+        <keyCode>16777267</keyCode>
+        <keyModifier>0</keyModifier>
+      </Key>
+      <Key isActive="yes" isFolder="no">
+        <name>F11 - clear queue</name>
+        <packageName />
+        <script>dg.ctl.send("q c")</script>
+        <command />
+        <keyCode>16777274</keyCode>
+        <keyModifier>0</keyModifier>
+      </Key>
+      <Key isActive="yes" isFolder="no">
+        <name>F12 - get coin x2</name>
+        <packageName />
+        <script>dg.ctl.send("get coin")
+dg.ctl.send("get coin")</script>
+        <command />
+        <keyCode>16777275</keyCode>
+        <keyModifier>0</keyModifier>
+      </Key>
+    </KeyGroup>
+  </KeyPackage>
+</MudletPackage>

@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE MudletPackage>
+<MudletPackage version="1.001">
+  <TriggerPackage />
+  <TimerPackage />
+  <AliasPackage>
+    <AliasGroup isActive="yes" isFolder="yes">
+      <name>dgate_updater</name>
+      <script />
+      <command />
+      <packageName>dgate_updater</packageName>
+      <regex />
+      <Alias isActive="yes" isFolder="no">
+        <name>dgupdate</name>
+        <script>dg.upd.update(((matches[2] or ""):lower()):find("force", 1, true) ~= nil)</script>
+        <command />
+        <packageName />
+        <regex>^dgupdate(?:\s+(.*))?$</regex>
+      </Alias>
+    </AliasGroup>
+  </AliasPackage>
+  <ActionPackage />
+  <ScriptPackage>
+    <ScriptGroup isActive="yes" isFolder="yes">
+      <name>dgate_updater</name>
+      <packageName>dgate_updater</packageName>
+      <script />
+      <eventHandlerList />
+      <Script isActive="yes" isFolder="no">
+        <name>DG Updater</name>
+        <packageName />
+        <script>-- DG Updater :: the  dgupdate  command.
+-- Pulls the latest DG Control package from GitHub and installs it, and (optionally) refreshes
+-- your shared highlights file from a private repo. Nothing runs automatically: you type dgupdate.
+--   dgupdate          update only if GitHub has a different version than the one installed
+--   dgupdate force    reinstall the package even if the version matches
+
+dg = dg or {}
+dg.upd = dg.upd or {}
+local U = dg.upd
+
+U.owner    = "macdsj"
+U.codeRepo = "dgate-control"      -- public: the control package
+U.hlRepo   = "dgate-highlights"   -- private (optional): dg_highlights.lua, needs dg_token.txt
+U.branch   = "main"
+
+local function say(m)  cecho("\n&lt;255,255,85&gt;[dgupdate]&lt;reset&gt; " .. m .. "\n") end
+local function warn(m) cecho("\n&lt;255,85,85&gt;[dgupdate]&lt;reset&gt; " .. m .. "\n") end
+local function trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
+
+-- the per-computer folder (same one the highlights stub reads from)
+function U.dir()
+  local home = (os.getenv("USERPROFILE") or os.getenv("HOME") or "."):gsub("\\", "/")
+  local candidates = { "D:/Documents/dglogs/Claude/dg-shared", home .. "/dg-control" }
+  for _, d in ipairs(candidates) do
+    if lfs.attributes(d, "mode") == "directory" then return d end
+  end
+  lfs.mkdir(candidates[2])
+  return candidates[2]
+end
+
+local function rawUrl(repo, file)
+  return string.format("https://raw.githubusercontent.com/%s/%s/%s/%s?cb=%d", U.owner, repo, U.branch, file, os.time())
+end
+
+-- one small fetch helper: get(url, headers, function(ok, body) ... end)
+U.pending = U.pending or {}
+local function get(url, headers, cb)
+  U.pending[url] = cb
+  getHTTP(url, headers or {})
+end
+
+local function finish(a, b, ok)
+  local url = U.pending[b] and b or (U.pending[a] and a)
+  if not url then return end
+  local cb = U.pending[url]; U.pending[url] = nil
+  cb(ok, ok and b or a)
+end
+
+if U.hDone then killAnonymousEventHandler(U.hDone) end
+if U.hErr  then killAnonymousEventHandler(U.hErr)  end
+-- sysGetHttpDone(event, url, body)   sysGetHttpError(event, message, url)
+U.hDone = registerAnonymousEventHandler("sysGetHttpDone", function(_, url, body)
+  local cb = U.pending[url]; if not cb then return end
+  U.pending[url] = nil; cb(true, body)
+end)
+U.hErr = registerAnonymousEventHandler("sysGetHttpError", function(_, msg, url)
+  local key = U.pending[url] and url or (U.pending[msg] and msg)
+  if not key then return end
+  local cb = U.pending[key]; U.pending[key] = nil; cb(false, msg)
+end)
+
+local function writeFile(path, text)
+  local f, err = io.open(path, "wb")
+  if not f then return false, err end
+  f:write(text); f:close()
+  return true
+end
+
+function U.highlights(dir)
+  local tf = io.open(dir .. "/dg_token.txt", "r")
+  if not tf then say("no dg_token.txt in " .. dir .. ": leaving your local highlights file as it is."); return end
+  local token = trim(tf:read("*l")); tf:close()
+  if token == "" then say("dg_token.txt is empty: leaving your local highlights file as it is."); return end
+  get(rawUrl(U.hlRepo, "dg_highlights.lua"), { Authorization = "token " .. token }, function(ok, body)
+    if not ok then warn("could not fetch highlights (" .. tostring(body) .. "): keeping your local file."); return end
+    if not tostring(body):find("dg.ctlData.names", 1, true) then
+      warn("the highlights download did not look right: keeping your local file."); return
+    end
+    local wrote, err = writeFile(dir .. "/dg_highlights.lua", body)
+    if not wrote then warn("could not save highlights: " .. tostring(err)); return end
+    if dg.loadSharedHighlights and dg.loadSharedHighlights() and dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
+    say("highlights updated.")
+  end)
+end
+
+local function isInstalled(name)
+  for _, p in ipairs(getPackages() or {}) do if p == name then return true end end
+  return false
+end
+
+function U.update(force)
+  local dir = U.dir()
+  say("checking " .. U.owner .. "/" .. U.codeRepo .. " ...")
+  get(rawUrl(U.codeRepo, "VERSION"), nil, function(ok, body)
+    if not ok then warn("could not reach GitHub (" .. tostring(body) .. "). Nothing was changed."); return end
+    local remote = tostring(body):match("%d[%d%.]*")
+    local mine = dg.ctl and dg.ctl.version
+    if remote and remote == mine and not force then
+      say("control package is already current (" .. mine .. ").")
+      U.highlights(dir)
+      return
+    end
+    say("updating the control package: " .. tostring(mine) .. " -&gt; " .. tostring(remote))
+    get(rawUrl(U.codeRepo, "dgate_control.xml"), nil, function(ok2, xml)
+      if not ok2 or not tostring(xml):find("&lt;MudletPackage", 1, true) then
+        warn("the package download failed or was not a package. Nothing was changed."); return
+      end
+      local path = dir .. "/dgate_control.xml"
+      local wrote, err = writeFile(path, xml)
+      if not wrote then warn("could not save the package: " .. tostring(err)); return end
+      if isInstalled("dgate_control") then uninstallPackage("dgate_control") end
+      tempTimer(1, function()
+        installPackage(path)
+        say("installed. Look for the 'DG Control ... loaded' line.")
+        U.highlights(dir)
+      end)
+    end)
+  end)
+end
+</script>
+        <eventHandlerList />
+      </Script>
+    </ScriptGroup>
+  </ScriptPackage>
+  <KeyPackage />
+</MudletPackage>
