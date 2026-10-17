@@ -1066,12 +1066,12 @@ else dg.ctl.warn("slow: no slow known for " .. (c or "your character")) end</scr
           <name>DG Control - anti-idle</name>
           <packageName />
           <script>-- DG Control :: anti-idle
--- The game prints "*** Warning, you have been inactive for 5 minutes! ***".
+-- The game warns at 5 minutes and then every minute after 10 ("inactive for N minutes").
 -- Answer it with a harmless command (dg.ctl.cfg.idleCmd, default "look").
 -- Toggle with:  antiidle on|off
 dg = dg or {}
 if dg._antiIdleTrig then killTrigger(dg._antiIdleTrig) end
-dg._antiIdleTrig = tempTrigger("you have been inactive for 5 minutes", function()
+dg._antiIdleTrig = tempTrigger("you have been inactive for", function()
   local C = dg.ctl
   if C and C.cfg and C.cfg.antiIdle == false then return end
   send((C and C.cfg and C.cfg.idleCmd) or "look", false)
@@ -1494,7 +1494,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.27"
+C.version = "0.28"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
