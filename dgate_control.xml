@@ -1183,6 +1183,7 @@ D.chars = {
   raptorian = "raptorian",
   kressa    = "kressa",
   tarvi     = "tarvi",
+  nyvar     = "nyvar",
 }
 
 -- Optional: pick an archetype by class (from the game's GMCP status) for a character not
@@ -1465,6 +1466,17 @@ dg.ctlLoops = {
       },
     },
 
+    -- Nyvar: dart, over and over. The cue lines are copied from Kressa and NOT verified for Nyvar --
+    -- if spk stalls after the first cast, send a cast transcript and the cue gets fixed.
+    nyvar = {
+      qc = true, start = "invoke dart {t}",
+      rules = {
+        { "Weaving those runes cost you",                 "invoke dart {t}" },
+        { "you're too close",                             "invoke dart {t}" },
+        { "you must move closer to your opponent's rank", "invoke dart {t}" },
+      },
+    },
+
     tarvi = {
       qc = true, start = "invoke blast {t}",
       rules = { { "{me} forms a triangle with both hands, framing*squarely in the middle of the resulting shape. The smell of ozone begins to permeate the area.", "invoke blast {t}" } },
@@ -1491,7 +1503,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.30"
+C.version = "0.31"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
