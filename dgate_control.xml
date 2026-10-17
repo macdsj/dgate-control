@@ -915,10 +915,8 @@ else dg.ctl.warn("boost: no boost spell known for " .. (c or "your character")) 
         </Alias>
         <Alias isActive="yes" isFolder="no">
           <name>vig</name>
-          <script>local c = dg.ctl.class
-if c == "raptorian" then dg.ctl.sendArg("invoke vigor at", matches[2])
-elseif c == "kressa" then dg.ctl.send("invoke nevig")
-else dg.ctl.warn("vig: no vigor spell known for " .. (c or "your character")) end</script>
+          <script>-- vigor is memorized as "vigor" on every character:  vig [target]  ->  invo vigor [target]
+dg.ctl.sendArg("invo vigor", matches[2])</script>
           <command />
           <packageName />
           <regex>^vig(?:\s+(.*))?$</regex>
@@ -1494,7 +1492,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.28"
+C.version = "0.29"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
