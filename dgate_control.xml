@@ -160,6 +160,20 @@ dg.ctl.send("get boot")</script>
           <regex>^pthide$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>disme</name>
+          <script>dg.ctl.cmdDisme(matches[2] or "")</script>
+          <command />
+          <packageName />
+          <regex>^disme(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ptdis</name>
+          <script>dg.ctl.cmdPtdis(matches[2] or "")</script>
+          <command />
+          <packageName />
+          <regex>^ptdis(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>spk</name>
           <script>dg.ctl.loopStart("spk", matches[2])</script>
           <command />
@@ -1569,6 +1583,103 @@ local function stealth(kind)
   return def
 end
 
+-- Disguise loops. disme FIELD VALUE keeps trying until "info disguise" shows it took; ptdis FIELD VALUE
+-- keeps disguising (to train the skill) until you halt. The goal comes from dg.ctl.disgGoal, set by the
+-- disme / ptdis aliases (dg.ctl.cmdDisme / cmdPtdis). After every attempt it sends "info disguise" and
+-- reads the answer: "You are disguised as Ferrets Down, a Female San Elf Thief."
+local function disguiseLoop(train)
+  local NAME  = train and "ptdis" or "disme"
+  local G     = (dg.ctl.disgGoal and dg.ctl.disgGoal.fields) or {}
+  local ORDER = { "name", "race", "sex", "class" }
+  local CFG   = {
+    gap      = 5,    -- disme: seconds between attempts while it has not taken yet
+    trainGap = 60,   -- ptdis: seconds between training attempts (what your own training used)
+    stall    = 10,   -- no "info disguise" answer for this long (plus any game delay): try again
+  }
+  local S = { on = true, tries = 0, ok = {}, busyUntil = 0 }
+  local timer, watchdog
+  local function now() return (getEpoch and getEpoch()) or os.time() end
+  local function off()
+    if timer    then killTimer(timer);    timer    = nil end
+    if watchdog then killTimer(watchdog); watchdog = nil end
+  end
+
+  -- "You are disguised as Ferrets Down, a Female San Elf Thief."
+  local function parse(txt)
+    local nm, sex, rest = tostring(txt or ""):match("[Yy]ou are disguised as (.-), an? (%a+) (.+)$")
+    if not nm then return nil end
+    return { name = nm, sex = sex:lower(), rest = (rest:gsub("[%s%.]+$", "")):lower() }
+  end
+  local function has(info, f, v)
+    v = tostring(v):lower()
+    if f == "name"  then return info.name:lower() == v end
+    if f == "sex"   then return info.sex == v end
+    if f == "race"  then return info.rest:sub(1, #v) == v end            -- "san elf thief" starts with "san elf"
+    if f == "class" then return info.rest:sub(-#v) == v end              -- ...and ends with "thief"
+    return false
+  end
+
+  local attempt
+  local function schedule(wait)
+    off()
+    wait = math.max(wait, S.busyUntil - now() + 0.3)
+    timer = tempTimer(wait, function() timer = nil; if S.on then attempt() end end)
+  end
+
+  attempt = function()
+    S.tries = S.tries + 1
+    for _, f in ipairs(ORDER) do
+      local v = G[f]
+      if v and (train or not S.ok[f]) then dg.ctl.send("disguise " .. f .. " as " .. v) end
+    end
+    dg.ctl.send("info disguise")
+    if watchdog then killTimer(watchdog) end
+    watchdog = tempTimer(CFG.stall + math.max(0, S.busyUntil - now()), function()
+      watchdog = nil
+      if S.on then dg.ctl.say(NAME .. ": no answer from info disguise, trying again"); attempt() end
+    end)
+  end
+
+  local function answered()
+    if watchdog then killTimer(watchdog); watchdog = nil end
+    local info = parse(line or (getCurrentLine and getCurrentLine()) or "")
+    if not info then schedule(CFG.gap); return end   -- "You are not disguised." or unreadable: go again
+    local all = true
+    for _, f in ipairs(ORDER) do
+      local v = G[f]
+      if v then
+        if has(info, f, v) then S.ok[f] = true else S.ok[f] = nil; all = false end
+      end
+    end
+    local now_ = info.name .. ", " .. info.sex .. " " .. info.rest
+    if train then
+      dg.ctl.say(NAME .. ": attempt " .. S.tries .. " done -- now " .. now_)
+      schedule(CFG.trainGap)
+    elseif all then
+      dg.ctl.say(NAME .. ": done after " .. S.tries .. " attempt(s) -- you are " .. now_)
+      dg.ctl.loopStop("disguised")
+    else
+      dg.ctl.say(NAME .. ": not yet (attempt " .. S.tries .. ") -- you are " .. now_ .. "; trying again")
+      schedule(CFG.gap)
+    end
+  end
+
+  return {
+    target = false,
+    start = function() attempt() end,
+    onStop = function() S.on = false; off() end,
+    rules = {
+      { "you are disguised as",                  answered },
+      { "you are not disguised",                 answered },
+      { "type-ahead queue full",                 function() schedule(2.5) end },
+      { "sec. delay", function()
+          local n = tonumber((line or (getCurrentLine and getCurrentLine()) or ""):match("(%d+)%s*sec"))
+          if n then S.busyUntil = now() + n end
+        end },
+    },
+  }
+end
+
 dg.ctlLoops = {
 
   ------------------------------------------------------------ generic (every character)
@@ -1607,6 +1718,9 @@ dg.ctlLoops = {
   --   pthide  : hide, and when hidden, reveal; then hide again (trains hide).
   ptsneak = { target = false, make = function() return stealth("sneak") end },
   pthide  = { target = false, make = function() return stealth("hide")  end },
+
+  disme = { target = false, make = function() return disguiseLoop(false) end },   -- disme name Ferrets Down
+  ptdis = { target = false, make = function() return disguiseLoop(true)  end },   -- ptdis name Ferrets Down
 
   ------------------------------------------------------------ Raptorian
   tk = {   -- turn undead
@@ -1736,7 +1850,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.35"
+C.version = "0.36"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -2004,6 +2118,50 @@ function C.onDisguise(name)
   C.buildHighlights()
   C.say("disguise: " .. who .. " is " .. name .. "   (me = " .. name .. ")")
 end
+
+---------------------------------------------------------------------------
+-- disguise tools:  disme FIELD VALUE / disme as PRESET     -&gt; keep trying until info disguise shows it
+--                  ptdis FIELD VALUE / ptdis as PRESET     -&gt; keep disguising (training) until halt
+-- FIELD is name, class, sex or race. A PRESET is a whole disguise kept in the highlights data:
+--   dg.ctlData.disguise.presets = { ["tarvi andiyar"] = { name="Tarvi Andiyar", sex="male", race="...", class="..." } }
+---------------------------------------------------------------------------
+function C.disguiseGoal(args)
+  args = trim(args or "")
+  local D = (dg.ctlData and dg.ctlData.disguise) or {}
+  local preset = args:lower():match("^as%s+(.+)$")
+  if preset then
+    local P = D.presets and D.presets[trim(preset)]
+    if not P then
+      local names = {}
+      for k in pairs(D.presets or {}) do names[#names + 1] = k end
+      table.sort(names)
+      C.warn("no disguise preset '" .. trim(preset) .. "'" .. (#names &gt; 0 and ("  (known: " .. table.concat(names, ", ") .. ")") or "  (none saved yet)"))
+      return nil
+    end
+    local f = {}
+    for _, k in ipairs({ "name", "race", "sex", "class" }) do if P[k] and P[k] ~= "" then f[k] = P[k] end end
+    return f
+  end
+  local f, v = args:match("^(%a+)%s+(.+)$")
+  f = f and f:lower()
+  if f == "name" or f == "class" or f == "sex" or f == "race" then return { [f] = trim(v) } end
+  return nil
+end
+
+function C.cmdDisguise(args, train)
+  local cmd = train and "ptdis" or "disme"
+  local fields = C.disguiseGoal(args)
+  if not fields then
+    if trim(args or "") == "" or not trim(args):lower():match("^as%s") then
+      C.warn(cmd .. " name|class|sex|race VALUE   e.g.  " .. cmd .. " name Ferrets Down      or   " .. cmd .. " as PRESET")
+    end
+    return
+  end
+  C.disgGoal = { fields = fields }
+  C.loopStart(train and "ptdis" or "disme", "")
+end
+function C.cmdDisme(args) C.cmdDisguise(args, false) end
+function C.cmdPtdis(args) C.cmdDisguise(args, true) end
 
 function C.cmdDisg(args)
   args = trim(args):lower()
