@@ -1271,6 +1271,12 @@ local function stealth(kind)
       walkMax  = 90,    -- give up on one walk after this long
       healTries = 8, healWait = 4,
     },
+    -- Skill training trip: when the game says a skill is ready, walk to the training room, trainall,
+    -- walk back to where training carries on, and resume.
+    train = {
+      ready = "you now feel prepared to train further in",
+      steps = { { walk = 199 }, { cmd = "trainall" }, { walk = 11933 } },
+    },
     cast = "invo sneak",   -- the shadow slinking spell
     castDelay = 20,        -- fallback wait if the game's "[N sec. delay]" line is missed
     maxCasts  = 3,         -- give up casting after this many tries with no "shadows guide" reply
@@ -1285,7 +1291,7 @@ local function stealth(kind)
               useSlink = SNEAK and SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] == true,
               slink = false, casting = false, castSeen = false, casts = 0, fizzles = 0, warned = false,
               busyUntil = 0,
-              resting = false, trip = nil }
+              resting = false, trip = nil, trainPending = false }
   local timer, watchdog, restTimer
 
   local function now() return (getEpoch and getEpoch()) or os.time() end
@@ -1295,7 +1301,8 @@ local function stealth(kind)
     if watchdog then killTimer(watchdog); watchdog = nil end
   end
 
-  local step  -- defined below
+  local step        -- defined below
+  local startTrip   -- defined below
 
   -- (Re)start the "no reply" watchdog. It waits CFG.stall seconds PLUS whatever game delay is still
   -- running, so an 18 second cast (or a 3 second ret) is never mistaken for a stall.
@@ -1332,6 +1339,7 @@ local function stealth(kind)
     if not S.on then return end
     if S.resting or S.trip then return end   -- worn out (resting / off to the healer); those resume us
     if S.casting then return end   -- a cast is in flight; its "[N sec. delay]" line resumes us
+    if S.trainPending then S.trainPending = false; startTrip("train"); return end   -- a skill is ready to train
     if S.useSlink and not S.slink then
       if S.casts &lt; CFG.maxCasts then
         S.casting, S.castSeen, S.casts = true, false, S.casts + 1
@@ -1390,7 +1398,7 @@ local function stealth(kind)
     if not st then
       tripCleanup()
       S.trip = nil
-      dg.ctl.say(NAME .. ": back from the healer, carrying on")
+      dg.ctl.say(NAME .. ": back from the " .. (T.name == "train" and "training room" or "healer") .. ", carrying on")
       S.hidden = false
       step(1.5)
       return
@@ -1398,7 +1406,13 @@ local function stealth(kind)
     local function after(w) T.timer = tempTimer(w, function() T.timer = nil; tripNext(i + 1) end) end
 
     if st.cmd then
-      dg.ctl.send(st.cmd); after(CFG.trip.stepWait)
+      dg.ctl.send(st.cmd)
+      -- wait the usual moment, then out any "[N sec. delay]" the command brought
+      T.timer = tempTimer(CFG.trip.stepWait, function()
+        T.timer = nil
+        local rest = S.busyUntil - now()
+        if rest &gt; 0 then after(rest + 0.5) else tripNext(i + 1) end
+      end)
 
     elseif st.walk then
       -- send your own  walkto  command, then watch the mapper until it says we are there
@@ -1432,15 +1446,20 @@ local function stealth(kind)
     end
   end
 
-  local function startTrip()
+  startTrip = function(kind)
+    kind = kind or "heal"
     local steps = {}
-    for _, s in ipairs(CFG.trip.out)  do steps[#steps + 1] = s end
-    steps[#steps + 1] = { heal = true }
-    for _, s in ipairs(CFG.trip.back) do steps[#steps + 1] = s end
-    S.trip = { steps = steps }
+    if kind == "train" then
+      for _, s in ipairs(CFG.train.steps) do steps[#steps + 1] = s end
+    else
+      for _, s in ipairs(CFG.trip.out)  do steps[#steps + 1] = s end
+      steps[#steps + 1] = { heal = true }
+      for _, s in ipairs(CFG.trip.back) do steps[#steps + 1] = s end
+    end
+    S.trip = { steps = steps, name = kind }
     S.casting, S.castSeen, S.hidden = false, false, false
     timersOff()
-    dg.ctl.say(NAME .. ": out of fatigue -- off to the healer")
+    dg.ctl.say(NAME .. (kind == "train" and ": a skill is ready -- off to the training room" or ": out of fatigue -- off to the healer"))
     dg.ctl.send("q c")
     tripNext(1)
   end
@@ -1501,6 +1520,11 @@ local function stealth(kind)
           elseif not S.trip and CFG.trip and cur &lt;= CFG.trip.low then
             exhausted()
           end
+        end },
+      -- a skill is ready to be trained: go and train (after the current trip / rest, if one is running)
+      { "you now feel prepared to train further in", function()
+          if S.trip and S.trip.name == "train" then return end   -- trainall will cover it
+          if S.trip or S.resting then S.trainPending = true else startTrip("train") end
         end },
       -- something attacked us: stop rather than keep poking at a game that refuses
       { "you can't do that while in combat",    function()
@@ -1844,7 +1868,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.39"
+C.version = "0.40"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
