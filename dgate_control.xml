@@ -1241,6 +1241,23 @@ local function stealth(kind)
     rest = "rest", stand = "stand",   -- what to send when worn out / to get going again
     restResume = 0.8,  -- get going again once a "** Current fatigue: X out of Y" line shows this fraction
     restMax    = 120,  -- ...or after this many seconds of resting, whichever comes first
+    -- Heal trip: when you run out of fatigue while standing in trip.from, walk to the healer, heal and
+    -- come back instead of resting. Room numbers are your map's. Each step is a command to send or a
+    -- mapper walk to a room; the trip stops the loop (and tells you where you are) if a walk does not
+    -- end in the expected room. Anywhere else, or with no mapper, it just rests.
+    trip = {
+      enabled  = true,
+      from     = 10509,         -- the practice room
+      low      = 8,             -- go when a "Current fatigue" line shows this much or less
+      out  = { { cmd = "open door" }, { cmd = "go door" }, { cmd = "close door" },
+               { walk = 10505 }, { cmd = "go portal" }, { walk = 184 } },
+      heal = "shop heal",       -- retried while the game says you are still in combat
+      back = { { walk = 11933 }, { cmd = "go portal" }, { walk = 10507 },
+               { cmd = "open door" }, { cmd = "go door" }, { cmd = "close door" } },
+      stepWait = 2.5,   -- seconds after each plain command
+      walkMax  = 90,    -- give up on one walk after this long
+      healTries = 8, healWait = 4,
+    },
     cast = "invo sneak",   -- the shadow slinking spell
     castDelay = 20,        -- fallback wait if the game's "[N sec. delay]" line is missed
     maxCasts  = 3,         -- give up casting after this many tries with no "shadows guide" reply
@@ -1255,7 +1272,7 @@ local function stealth(kind)
               useSlink = SNEAK and SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] == true,
               slink = false, casting = false, castSeen = false, casts = 0, fizzles = 0, warned = false,
               busyUntil = 0,
-              resting = false }
+              resting = false, trip = nil }
   local timer, watchdog, restTimer
 
   local function now() return (getEpoch and getEpoch()) or os.time() end
@@ -1300,7 +1317,7 @@ local function stealth(kind)
 
   step = function(wait)
     if not S.on then return end
-    if S.resting then return end   -- worn out and resting; endRest() resumes us
+    if S.resting or S.trip then return end   -- worn out (resting / off to the healer); those resume us
     if S.casting then return end   -- a cast is in flight; its "[N sec. delay]" line resumes us
     if S.useSlink and not S.slink then
       if S.casts &lt; CFG.maxCasts then
@@ -1330,6 +1347,102 @@ local function stealth(kind)
     step(1.5)
   end
 
+  ---------------------------------------------------------------- heal trip
+  local function mapRoom() return map and map.currentRoom end
+
+  local function tripCleanup()
+    local T = S.trip
+    if not T then return end
+    if T.timer   then killTimer(T.timer);   T.timer = nil end
+    if T.guard   then killTimer(T.guard);   T.guard = nil end
+    if T.handler then killAnonymousEventHandler(T.handler); T.handler = nil end
+  end
+
+  local function tripAbort(why)
+    tripCleanup()
+    S.trip = nil
+    dg.ctl.warn(NAME .. ": heal trip failed (" .. why .. "); the map thinks you are in room " .. tostring(mapRoom() or "?") .. ". Stopping.")
+    dg.ctl.loopStop("heal trip failed")
+  end
+
+  local function tripNext(i)
+    local T = S.trip
+    if not T or not S.on then return end
+    local st = T.steps[i]
+    if not st then
+      tripCleanup()
+      S.trip = nil
+      dg.ctl.say(NAME .. ": back from the healer, carrying on")
+      S.hidden = false
+      step(1.5)
+      return
+    end
+    local function after(w) T.timer = tempTimer(w, function() T.timer = nil; tripNext(i + 1) end) end
+
+    if st.cmd then
+      dg.ctl.send(st.cmd); after(CFG.trip.stepWait)
+
+    elseif st.walk then
+      if mapRoom() == st.walk then after(0.5); return end
+      if not (map and map.speedwalk) then tripAbort("no mapper script"); return end
+      local waited = 0
+      local function go()
+        T.timer = nil
+        if not mapRoom() then   -- the mapper is still working out where we are
+          waited = waited + 1
+          if waited &gt; 8 then tripAbort("the map lost your position"); return end
+          T.timer = tempTimer(1, go); return
+        end
+        dg.ctl.say(NAME .. ": walking to room " .. st.walk)
+        T.handler = registerAnonymousEventHandler("sysSpeedwalkFinished", function()
+          if T.handler then killAnonymousEventHandler(T.handler); T.handler = nil end
+          if T.guard then killTimer(T.guard); T.guard = nil end
+          T.timer = tempTimer(2, function()
+            T.timer = nil
+            if mapRoom() == st.walk then tripNext(i + 1)
+            else tripAbort("expected room " .. st.walk) end
+          end)
+        end)
+        T.guard = tempTimer(CFG.trip.walkMax, function()
+          T.guard = nil
+          if T.handler then killAnonymousEventHandler(T.handler); T.handler = nil end
+          tripAbort("the walk to " .. st.walk .. " took too long")
+        end)
+        local ok, err = pcall(map.speedwalk, st.walk)
+        if not ok then tripAbort("walk error: " .. tostring(err)) end
+      end
+      go()
+
+    elseif st.heal then
+      T.healTries = 0
+      local function try()
+        T.healTries = T.healTries + 1
+        if T.healTries &gt; CFG.trip.healTries then tripAbort("could not heal after " .. CFG.trip.healTries .. " tries"); return end
+        T.healing, T.busy = true, false
+        dg.ctl.say(NAME .. ": " .. CFG.trip.heal .. " (try " .. T.healTries .. ")")
+        dg.ctl.send(CFG.trip.heal)
+        T.timer = tempTimer(CFG.trip.healWait, function()
+          T.timer = nil
+          if T.busy then try() else T.healing = false; tripNext(i + 1) end
+        end)
+      end
+      try()
+    end
+  end
+
+  local function startTrip()
+    local steps = {}
+    for _, s in ipairs(CFG.trip.out)  do steps[#steps + 1] = s end
+    steps[#steps + 1] = { heal = true }
+    for _, s in ipairs(CFG.trip.back) do steps[#steps + 1] = s end
+    S.trip = { steps = steps }
+    S.casting, S.castSeen, S.hidden = false, false, false
+    timersOff()
+    dg.ctl.say(NAME .. ": out of fatigue -- off to the healer")
+    dg.ctl.send("q c")
+    tripNext(1)
+  end
+
   local function startRest()
     if S.resting or not S.on then return end
     S.resting, S.casting, S.castSeen, S.hidden = true, false, false, false
@@ -1338,6 +1451,13 @@ local function stealth(kind)
     dg.ctl.send("q c")
     dg.ctl.send(CFG.rest)
     restTimer = tempTimer(CFG.restMax, function() restTimer = nil; endRest("timed out") end)
+  end
+
+  -- Out of fatigue: the healer trip when we are in the practice room and the mapper can walk, else rest.
+  local function exhausted()
+    if S.resting or S.trip or not S.on then return end
+    local TR = CFG.trip
+    if TR and TR.enabled and mapRoom() == TR.from and map.speedwalk then startTrip() else startRest() end
   end
 
   -- A retreat answer counts even if we were just revealed (the move still happens).
@@ -1352,7 +1472,7 @@ local function stealth(kind)
     target = false,
     qc = true,
     start = function() step(0) end,
-    onStop = function() S.on = false; timersOff(); if restTimer then killTimer(restTimer); restTimer = nil end end,
+    onStop = function() S.on = false; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
     rules = {
       -- hiding
       { "you slip into the shadows",            function() S.hidden = true;  step() end },
@@ -1360,18 +1480,28 @@ local function stealth(kind)
       { "you fail in your attempt to hide",     function() S.hidden = false; step() end },
       { "you reveal yourself",                  function() S.hidden = false; S.clear = SNEAK; step() end },
       -- worn out: rest (the game says one of these when fatigue is gone)
-      { "warning: current fatigue below",       startRest },
-      { "don't have enough energy to do that",  startRest },
-      { "too exhausted to keep up",             startRest },
+      { "warning: current fatigue below",       exhausted },
+      { "don't have enough energy to do that",  exhausted },
+      { "too exhausted to keep up",             exhausted },
       -- the game prints "** Current fatigue: X out of Y" now and then: enough to get going again?
       { "current fatigue:*out of",              function()
-          if not S.resting then return end
           local cur, max = (line or (getCurrentLine and getCurrentLine()) or ""):match("[Cc]urrent fatigue:%s*(%d+)%s*out of%s*(%d+)")
           cur, max = tonumber(cur), tonumber(max)
-          if cur and max and max &gt; 0 and cur / max &gt;= CFG.restResume then endRest(cur .. "/" .. max .. " fatigue") end
+          if not (cur and max and max &gt; 0) then return end
+          if S.resting then
+            if cur / max &gt;= CFG.restResume then endRest(cur .. "/" .. max .. " fatigue") end
+          elseif not S.trip and CFG.trip and cur &lt;= CFG.trip.low then
+            exhausted()
+          end
         end },
       -- something attacked us: stop rather than keep poking at a game that refuses
-      { "you can't do that while in combat",    function() dg.ctl.loopStop("in combat") end },
+      { "you can't do that while in combat",    function()
+          if S.trip then
+            if S.trip.healing then S.trip.busy = true end   -- still fighting: the healer will be asked again
+          else
+            dg.ctl.loopStop("in combat")
+          end
+        end },
       -- the game bounced a command: try again in a moment
       { "type-ahead queue full",                function() step(2.5) end },
       -- any "[N sec. delay]": remember it so the watchdog waits it out; a cast also resumes from here
@@ -1606,7 +1736,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.34"
+C.version = "0.35"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
