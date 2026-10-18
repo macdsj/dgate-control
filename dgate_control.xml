@@ -83,6 +83,13 @@ dg.ctl.send("get boot")</script>
           <regex>^tk(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>wk</name>
+          <script>dg.ctl.loopStart("wk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^wk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>bk</name>
           <script>dg.ctl.loopStart("bk", matches[2])</script>
           <command />
@@ -299,6 +306,13 @@ dg.ctl.send("get coin from " .. o)</script>
           <command />
           <packageName />
           <regex>^skugz(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>water</name>
+          <script>dg.ctl.sendArg("invoke water", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^water(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
           <name>aof</name>
@@ -1799,6 +1813,14 @@ dg.ctlLoops = {
     qc = true, start = "invoke mist at {t}",
     rules = { { "{me} begins chanting softly to the heavens", "invoke mist at {t}" } },
   },
+  wk = {   -- holy water (extra damage to undead), over and over
+    qc = true, start = "invoke water {t}",
+    rules = {
+      { "Weaving those runes cost you",                 "invoke water {t}" },
+      { "you're too close",                             "invoke water {t}" },
+      { "you must move closer to your opponent's rank", "invoke water {t}" },
+    },
+  },
   tok = {  -- touch
     qc = true, start = "invoke touch {t}",
     rules = { { "{me}'s fingertips begin to glow with a pale green light.", "invoke touch {t}" } },
@@ -1854,12 +1876,14 @@ dg.ctlLoops = {
   -- above; the ROTATION ORDER is a guess, not verified from logs -- reorder or trim as needed).
   spk = { by_class = {
 
+    -- Raptorian: arrow of light, over and over (cue line is the same "Weaving those runes" line
+    -- his old vt trigger used -- send a cast transcript if it stalls after the first cast).
     raptorian = {
-      qc = true, start = "invoke lbolt at {t}",
+      qc = true, start = "invoke larrow {t}",
       rules = {
-        { "Beams of celestial light begin to coalesce between {me}'s hands.", "invoke mist at {t}" },
-        { "{me} begins chanting softly to the heavens",                      "invoke touch {t}" },
-        { "{me}'s fingertips begin to glow with a pale green light.",        "invoke lbolt at {t}" },
+        { "Weaving those runes cost you",                 "invoke larrow {t}" },
+        { "you're too close",                             "invoke larrow {t}" },
+        { "you must move closer to your opponent's rank", "invoke larrow {t}" },
       },
     },
 
@@ -1911,7 +1935,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.44"
+C.version = "0.45"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
