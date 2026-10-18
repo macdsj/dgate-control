@@ -1471,7 +1471,14 @@ local function stealth(kind)
   local function exhausted()
     if S.resting or S.trip or not S.on then return end
     local TR = CFG.trip
-    if TR and TR.enabled and mapRoom() == TR.from and map.speedwalk then startTrip() else startRest() end
+    if TR and TR.enabled and mapRoom() == TR.from and map.speedwalk then startTrip(); return end
+    local why
+    if not (TR and TR.enabled) then why = "heal trip is switched off"
+    elseif not (map and map.speedwalk) then why = "no mapper script loaded"
+    elseif not mapRoom() then why = "the map does not know which room you are in"
+    else why = "the map says room " .. tostring(mapRoom()) .. ", the heal trip starts from room " .. tostring(TR.from) end
+    dg.ctl.say(NAME .. ": no heal trip (" .. why .. ")")
+    startRest()
   end
 
   -- A retreat answer counts even if we were just revealed (the move still happens).
@@ -1850,7 +1857,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.36"
+C.version = "0.37"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
