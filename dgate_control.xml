@@ -1224,7 +1224,8 @@ local beatRules = {
 --   invo sneak): cast first, and again whenever "The shadows cease to guide your movements" shows.
 --   The cast reveals you, so the loop hides again afterwards. It waits out the cast using the
 --   "[N sec. delay]" the game prints, so a changed casting time needs no edit here.
--- pthide: hide until hidden, then reveal, then hide again.
+-- pthide: hide until hidden, then un-hide with ' (never "reveal": that drops disguises), then hide again.
+-- Both: when fatigue runs out the loop rests, then carries on (see startRest below).
 -- Only ONE command is ever in flight (the game's type-ahead queue is tiny and ret has a 3s delay),
 -- so every command waits for the game's answer to the last one. Any "[N sec. delay]" line pushes the
 -- "no reply" watchdog out by that long, so a long cast never looks like a stall.
@@ -1233,7 +1234,13 @@ local function stealth(kind)
   local NAME  = SNEAK and "ptsneak" or "pthide"
   local SLINK_CHARS = { kressa = true, katie = true, kasper = true }   -- who keeps shadow slinking up (ptsneak only)
   local CFG = {
-    hide = "hide", reveal = "reveal", adv = "adv 1", ret = "ret",
+    hide = "hide", adv = "adv 1", ret = "ret",
+    -- pthide un-hides with a single ' (the game answers "Say what?" and you step out of hiding).
+    -- NEVER use the "reveal" command here: it also drops your disguise.
+    unhide = "'",
+    rest = "rest", stand = "stand",   -- what to send when worn out / to get going again
+    restResume = 0.8,  -- get going again once a "** Current fatigue: X out of Y" line shows this fraction
+    restMax    = 120,  -- ...or after this many seconds of resting, whichever comes first
     cast = "invo sneak",   -- the shadow slinking spell
     castDelay = 20,        -- fallback wait if the game's "[N sec. delay]" line is missed
     maxCasts  = 3,         -- give up casting after this many tries with no "shadows guide" reply
@@ -1245,8 +1252,9 @@ local function stealth(kind)
   local S = { on = true, hidden = false, mode = "adv", retLeft = 0, clear = false,
               useSlink = SNEAK and SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] == true,
               slink = false, casting = false, castSeen = false, casts = 0, warned = false,
-              busyUntil = 0 }
-  local timer, watchdog
+              busyUntil = 0,
+              resting = false }
+  local timer, watchdog, restTimer
 
   local function now() return (getEpoch and getEpoch()) or os.time() end
 
@@ -1290,6 +1298,7 @@ local function stealth(kind)
 
   step = function(wait)
     if not S.on then return end
+    if S.resting then return end   -- worn out and resting; endRest() resumes us
     if S.casting then return end   -- a cast is in flight; its "[N sec. delay]" line resumes us
     if S.useSlink and not S.slink then
       if S.casts &lt; CFG.maxCasts then
@@ -1303,9 +1312,30 @@ local function stealth(kind)
       end
     end
     if not S.hidden then queue(CFG.hide, wait)
-    elseif not SNEAK then queue(CFG.reveal, wait)
+    elseif not SNEAK then queue(CFG.unhide, wait)
     elseif S.mode == "adv" then queue(CFG.adv, wait)
     else queue(CFG.ret, wait) end
+  end
+
+  -- Out of fatigue: stop sending anything, rest, and resume when fatigue is back up.
+  local function endRest(why)
+    if not S.resting then return end
+    S.resting = false
+    if restTimer then killTimer(restTimer); restTimer = nil end
+    dg.ctl.say(NAME .. ": done resting (" .. why .. "), carrying on")
+    dg.ctl.send("q c")
+    dg.ctl.send(CFG.stand)
+    step(1.5)
+  end
+
+  local function startRest()
+    if S.resting or not S.on then return end
+    S.resting, S.casting, S.castSeen, S.hidden = true, false, false, false
+    timersOff()
+    dg.ctl.say(NAME .. ": too tired -- resting (back to work at " .. math.floor(CFG.restResume * 100) .. "% fatigue, or after " .. CFG.restMax .. "s)")
+    dg.ctl.send("q c")
+    dg.ctl.send(CFG.rest)
+    restTimer = tempTimer(CFG.restMax, function() restTimer = nil; endRest("timed out") end)
   end
 
   -- A retreat answer counts even if we were just revealed (the move still happens).
@@ -1320,13 +1350,24 @@ local function stealth(kind)
     target = false,
     qc = true,
     start = function() step(0) end,
-    onStop = function() S.on = false; timersOff() end,
+    onStop = function() S.on = false; timersOff(); if restTimer then killTimer(restTimer); restTimer = nil end end,
     rules = {
       -- hiding
       { "you slip into the shadows",            function() S.hidden = true;  step() end },
       { "you are already unable to be seen",    function() S.hidden = true;  step() end },
       { "you fail in your attempt to hide",     function() S.hidden = false; step() end },
       { "you reveal yourself",                  function() S.hidden = false; S.clear = SNEAK; step() end },
+      -- worn out: rest (the game says one of these when fatigue is gone)
+      { "warning: current fatigue below",       startRest },
+      { "don't have enough energy to do that",  startRest },
+      { "too exhausted to keep up",             startRest },
+      -- the game prints "** Current fatigue: X out of Y" now and then: enough to get going again?
+      { "current fatigue:*out of",              function()
+          if not S.resting then return end
+          local cur, max = (line or (getCurrentLine and getCurrentLine()) or ""):match("[Cc]urrent fatigue:%s*(%d+)%s*out of%s*(%d+)")
+          cur, max = tonumber(cur), tonumber(max)
+          if cur and max and max &gt; 0 and cur / max &gt;= CFG.restResume then endRest(cur .. "/" .. max .. " fatigue") end
+        end },
       -- something attacked us: stop rather than keep poking at a game that refuses
       { "you can't do that while in combat",    function() dg.ctl.loopStop("in combat") end },
       -- the game bounced a command: try again in a moment
@@ -1546,7 +1587,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.32"
+C.version = "0.33"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
