@@ -146,6 +146,13 @@ dg.ctl.send("get boot")</script>
           <regex>^autohide$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>ptsneak</name>
+          <script>dg.ctl.loopStart("ptsneak", "")</script>
+          <command />
+          <packageName />
+          <regex>^ptsneak$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>pthide</name>
           <script>dg.ctl.loopStart("pthide", "")</script>
           <command />
@@ -915,7 +922,7 @@ else dg.ctl.warn("boost: no boost spell known for " .. (c or "your character")) 
         </Alias>
         <Alias isActive="yes" isFolder="no">
           <name>vig</name>
-          <script>-- vigor is memorized as "vigor" on every character:  vig [target]  ->  invo vigor [target]
+          <script>-- vigor is memorized as "vigor" on every character:  vig [target]  -&gt;  invo vigor [target]
 dg.ctl.sendArg("invo vigor", matches[2])</script>
           <command />
           <packageName />
@@ -943,7 +950,7 @@ else dg.ctl.warn("scan: no scan known for " .. (c or "your character")) end</scr
         </Alias>
         <Alias isActive="yes" isFolder="no">
           <name>dart</name>
-          <script>-- for now every character uses:  dart [target]  ->  invoke dart [target]
+          <script>-- for now every character uses:  dart [target]  -&gt;  invoke dart [target]
 -- (change this when a psion needs its own version)
 dg.ctl.sendArg("invoke dart", matches[2])</script>
           <command />
@@ -1210,6 +1217,168 @@ local beatRules = {
   { "you must move closer to your opponent's rank",     "punch {t}" },
 }
 
+-- Stealth trainers. stealth("sneak") -&gt; ptsneak, stealth("hide") -&gt; pthide.
+-- ptsneak: hide until hidden, then: adv 1 until the front wall, ret, ret to the back, repeat. If
+--   revealed at any point: q c, hide until hidden, resume where it left off.
+--   Kressa / Katie / Kasper also keep SHADOW SLINKING up (the spell you memorized as "sneak", cast with
+--   invo sneak): cast first, and again whenever "The shadows cease to guide your movements" shows.
+--   The cast reveals you, so the loop hides again afterwards. It waits out the cast using the
+--   "[N sec. delay]" the game prints, so a changed casting time needs no edit here.
+-- pthide: hide until hidden, then reveal, then hide again.
+-- Only ONE command is ever in flight (the game's type-ahead queue is tiny and ret has a 3s delay),
+-- so every command waits for the game's answer to the last one. Any "[N sec. delay]" line pushes the
+-- "no reply" watchdog out by that long, so a long cast never looks like a stall.
+local function stealth(kind)
+  local SNEAK = (kind == "sneak")
+  local NAME  = SNEAK and "ptsneak" or "pthide"
+  local SLINK_CHARS = { kressa = true, katie = true, kasper = true }   -- who keeps shadow slinking up (ptsneak only)
+  local CFG = {
+    hide = "hide", reveal = "reveal", adv = "adv 1", ret = "ret",
+    cast = "invo sneak",   -- the shadow slinking spell
+    castDelay = 20,        -- fallback wait if the game's "[N sec. delay]" line is missed
+    maxCasts  = 3,         -- give up casting after this many tries with no "shadows guide" reply
+    rets     = 2,     -- ret commands per trip to the back
+    delay    = 0.3,   -- pause after a game line before the next command
+    retDelay = 3.3,   -- ret carries a 3 sec delay; wait it out
+    stall    = 10,    -- seconds of silence (after any game delay) before it re-evaluates and resends
+  }
+  local S = { on = true, hidden = false, mode = "adv", retLeft = 0, clear = false,
+              useSlink = SNEAK and SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] == true,
+              slink = false, casting = false, castSeen = false, casts = 0, warned = false,
+              busyUntil = 0 }
+  local timer, watchdog
+
+  local function now() return (getEpoch and getEpoch()) or os.time() end
+
+  local function timersOff()
+    if timer    then killTimer(timer);    timer    = nil end
+    if watchdog then killTimer(watchdog); watchdog = nil end
+  end
+
+  local step  -- defined below
+
+  -- (Re)start the "no reply" watchdog. It waits CFG.stall seconds PLUS whatever game delay is still
+  -- running, so an 18 second cast (or a 3 second ret) is never mistaken for a stall.
+  local function armWatchdog()
+    if watchdog then killTimer(watchdog); watchdog = nil end
+    local wait = CFG.stall + math.max(0, S.busyUntil - now())
+    watchdog = tempTimer(wait, function()
+      watchdog = nil
+      if S.on then
+        S.casting, S.castSeen = false, false
+        dg.ctl.say(NAME .. ": no reply for " .. CFG.stall .. "s, retrying"); step(0)
+      end
+    end)
+  end
+
+  local function fire(cmd)
+    if S.clear then S.clear = false; dg.ctl.send("q c") end
+    dg.ctl.send(cmd)
+    armWatchdog()
+  end
+
+  -- Schedule one command. A newer call replaces a pending one, so a burst of lines from a
+  -- single action (e.g. reveal + the move it interrupts) still produces a single command.
+  local function queue(cmd, wait)
+    if not S.on then return end
+    timersOff()
+    timer = tempTimer(wait or CFG.delay, function()
+      timer = nil
+      if S.on then fire(cmd) end
+    end)
+  end
+
+  step = function(wait)
+    if not S.on then return end
+    if S.casting then return end   -- a cast is in flight; its "[N sec. delay]" line resumes us
+    if S.useSlink and not S.slink then
+      if S.casts &lt; CFG.maxCasts then
+        S.casting, S.castSeen, S.casts = true, false, S.casts + 1
+        dg.ctl.say(NAME .. ": casting shadow slinking (try " .. S.casts .. ")")
+        queue(CFG.cast, wait)
+        return
+      elseif not S.warned then
+        S.warned = true
+        dg.ctl.warn(NAME .. ": shadow slinking did not take after " .. CFG.maxCasts .. " casts; training without it (halt and start again to retry)")
+      end
+    end
+    if not S.hidden then queue(CFG.hide, wait)
+    elseif not SNEAK then queue(CFG.reveal, wait)
+    elseif S.mode == "adv" then queue(CFG.adv, wait)
+    else queue(CFG.ret, wait) end
+  end
+
+  -- A retreat answer counts even if we were just revealed (the move still happens).
+  local function retDone()
+    if S.mode ~= "ret" then return end
+    S.retLeft = S.retLeft - 1
+    if S.retLeft &lt;= 0 then S.mode = "adv" end
+    step(CFG.retDelay)
+  end
+
+  local def = {
+    target = false,
+    qc = true,
+    start = function() step(0) end,
+    onStop = function() S.on = false; timersOff() end,
+    rules = {
+      -- hiding
+      { "you slip into the shadows",            function() S.hidden = true;  step() end },
+      { "you are already unable to be seen",    function() S.hidden = true;  step() end },
+      { "you fail in your attempt to hide",     function() S.hidden = false; step() end },
+      { "you reveal yourself",                  function() S.hidden = false; S.clear = SNEAK; step() end },
+      -- something attacked us: stop rather than keep poking at a game that refuses
+      { "you can't do that while in combat",    function() dg.ctl.loopStop("in combat") end },
+      -- the game bounced a command: try again in a moment
+      { "type-ahead queue full",                function() step(2.5) end },
+      -- any "[N sec. delay]": remember it so the watchdog waits it out; a cast also resumes from here
+      { "sec. delay", function()
+          local n = tonumber((line or (getCurrentLine and getCurrentLine()) or ""):match("(%d+)%s*sec"))
+          if n then S.busyUntil = now() + n end
+          if S.useSlink and S.casting and S.castSeen then
+            S.castSeen = false
+            -- anything else already waiting in the game's queue (a stray second cast, extra hides)
+            -- would run the moment the delay ends, so clear it now
+            dg.ctl.send("q c")
+            -- hold until the cast is over, THEN decide (the "shadows guide" line arrives at the end)
+            timersOff()
+            timer = tempTimer((n or CFG.castDelay) + 2, function() timer = nil; S.casting = false; step(0) end)
+          elseif watchdog and n then
+            armWatchdog()
+          end
+        end },
+    },
+  }
+
+  if SNEAK then
+    local walk = {
+      -- walking to the front
+      { "you advance another",                  function() if S.mode == "adv" then step() end end },
+      { "you cannot advance further",           function()
+          if S.mode == "adv" then S.mode, S.retLeft = "ret", CFG.rets; step() end
+        end },
+      -- going to the back
+      { "you retreat",                          retDone },
+      { "you may not retreat any further",      retDone },
+    }
+    for _, r in ipairs(walk) do def.rules[#def.rules + 1] = r end
+  end
+
+  if S.useSlink then
+    local more = {
+      -- a cast finished (the "[N sec. delay]" rule above takes it from here)
+      { "weaving those runes cost you",  function() if S.casting then S.castSeen = true end end },
+      -- the spell is up / still up / gone
+      { "the shadows seem to guide your movements",   function() S.slink = true; S.casts = 0 end },
+      { "keeping up the shadow slinking on yourself", function() S.slink = true; S.casts = 0 end },
+      { "already seems to be a spell of that type",   function() S.slink = true; S.casting = false; step() end },
+      { "the shadows cease to guide your movements",  function() S.slink = false; S.casts = 0; step() end },
+    }
+    for _, r in ipairs(more) do def.rules[#def.rules + 1] = r end
+  end
+  return def
+end
+
 dg.ctlLoops = {
 
   ------------------------------------------------------------ generic (every character)
@@ -1242,138 +1411,12 @@ dg.ctlLoops = {
     stop  = { "you slip into the shadows" },
   },
 
-  -- Stealth trainer. Hide until hidden, then: adv 1 until the front wall, ret, ret to the back,
-  -- repeat. If revealed at any point: q c, hide until hidden, resume where it left off.
-  -- Kressa / Katie / Kasper also keep SHADOW SLINKING up (the spell you memorized as "sneak", cast
-  -- with  invo sneak): cast first, and again whenever "The shadows cease to guide your movements"
-  -- shows. The cast reveals you, so the loop hides again afterwards. It waits out the cast using the
-  -- "[N sec. delay]" the game prints, so a changed casting time needs no edit here.
-  -- Only ONE command is ever in flight (the game's type-ahead queue is tiny and ret has a 3s
-  -- delay), so every command waits for the game's answer to the last one. Written as a factory
-  -- (make) so each `pthide` starts with fresh state; onStop cancels its timers on halt/F4.
-  pthide = {
-    target = false,
-    make = function()
-      local SLINK_CHARS = { kressa = true, katie = true, kasper = true }   -- who keeps shadow slinking up
-      local CFG = {
-        hide = "hide", adv = "adv 1", ret = "ret",
-        cast = "invo sneak",   -- the shadow slinking spell
-        castDelay = 20,        -- fallback wait if the game's "[N sec. delay]" line is missed
-        maxCasts  = 3,         -- give up casting after this many tries with no "shadows guide" reply
-        rets     = 2,     -- ret commands per trip to the back
-        delay    = 0.3,   -- pause after a game line before the next command
-        retDelay = 3.3,   -- ret carries a 3 sec delay; wait it out
-        stall    = 10,    -- seconds of silence before it re-evaluates and resends
-      }
-      local S = { on = true, hidden = false, mode = "adv", retLeft = 0, clear = false,
-                  useSlink = SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] == true,
-                  slink = false, casting = false, castSeen = false, casts = 0, warned = false }
-      local timer, watchdog
-
-      local function timersOff()
-        if timer    then killTimer(timer);    timer    = nil end
-        if watchdog then killTimer(watchdog); watchdog = nil end
-      end
-
-      local step  -- defined below
-
-      local function fire(cmd)
-        if S.clear then S.clear = false; dg.ctl.send("q c") end
-        dg.ctl.send(cmd)
-        watchdog = tempTimer(CFG.stall, function()
-          watchdog = nil
-          if S.on then
-            S.casting, S.castSeen = false, false
-            dg.ctl.say("pthide: no reply for " .. CFG.stall .. "s, retrying"); step(0)
-          end
-        end)
-      end
-
-      -- Schedule one command. A newer call replaces a pending one, so a burst of lines from a
-      -- single action (e.g. reveal + the move it interrupts) still produces a single command.
-      local function queue(cmd, wait)
-        if not S.on then return end
-        timersOff()
-        timer = tempTimer(wait or CFG.delay, function()
-          timer = nil
-          if S.on then fire(cmd) end
-        end)
-      end
-
-      step = function(wait)
-        if not S.on then return end
-        if S.casting then return end   -- a cast is in flight; its "[N sec. delay]" line resumes us
-        if S.useSlink and not S.slink then
-          if S.casts &lt; CFG.maxCasts then
-            S.casting, S.castSeen, S.casts = true, false, S.casts + 1
-            queue(CFG.cast, wait)
-            return
-          elseif not S.warned then
-            S.warned = true
-            dg.ctl.warn("pthide: shadow slinking did not take after " .. CFG.maxCasts .. " casts; training without it (halt and start again to retry)")
-          end
-        end
-        if not S.hidden then queue(CFG.hide, wait)
-        elseif S.mode == "adv" then queue(CFG.adv, wait)
-        else queue(CFG.ret, wait) end
-      end
-
-      -- A retreat answer counts even if we were just revealed (the move still happens).
-      local function retDone()
-        if S.mode ~= "ret" then return end
-        S.retLeft = S.retLeft - 1
-        if S.retLeft &lt;= 0 then S.mode = "adv" end
-        step(CFG.retDelay)
-      end
-
-      local def = {
-        target = false,
-        qc = true,
-        start = function() step(0) end,
-        onStop = function() S.on = false; timersOff() end,
-        rules = {
-          -- hiding
-          { "you slip into the shadows",            function() S.hidden = true;  step() end },
-          { "you are already unable to be seen",    function() S.hidden = true;  step() end },
-          { "you fail in your attempt to hide",     function() S.hidden = false; step() end },
-          { "you reveal yourself",                  function() S.hidden = false; S.clear = true; step() end },
-          -- walking to the front
-          { "you advance another",                  function() if S.mode == "adv" then step() end end },
-          { "you cannot advance further",           function()
-              if S.mode == "adv" then S.mode, S.retLeft = "ret", CFG.rets; step() end
-            end },
-          -- going to the back
-          { "you retreat",                          retDone },
-          { "you may not retreat any further",      retDone },
-          -- the game bounced a command: try again in a moment
-          { "type-ahead queue full",                function() step(2.5) end },
-        },
-      }
-
-      if S.useSlink then
-        local more = {
-          -- a cast finished: wait out the delay the game announces, then carry on
-          { "weaving those runes cost you",  function() if S.casting then S.castSeen = true end end },
-          { "sec. delay", function()
-              if S.casting and S.castSeen then
-                S.castSeen = false
-                local n = tonumber((line or (getCurrentLine and getCurrentLine()) or ""):match("(%d+)%s*sec")) or CFG.castDelay
-                -- hold until the cast is over, THEN decide (the "shadows guide" line arrives at the end)
-                timersOff()
-                timer = tempTimer(n + 1, function() timer = nil; S.casting = false; step(0) end)
-              end
-            end },
-          -- the spell is up / still up / gone
-          { "the shadows seem to guide your movements",   function() S.slink = true; S.casts = 0 end },
-          { "keeping up the shadow slinking on yourself", function() S.slink = true; S.casts = 0 end },
-          { "already seems to be a spell of that type",   function() S.slink = true; S.casting = false; step() end },
-          { "the shadows cease to guide your movements",  function() S.slink = false; S.casts = 0; step() end },
-        }
-        for _, r in ipairs(more) do def.rules[#def.rules + 1] = r end
-      end
-      return def
-    end,
-  },
+  -- Stealth trainers (both built by the stealth() factory above, so each start gets fresh state):
+  --   ptsneak : hide, then adv 1 to the front wall, ret, ret to the back, repeat (trains sneak).
+  --             Kressa / Katie / Kasper also keep SHADOW SLINKING up (see stealth()).
+  --   pthide  : hide, and when hidden, reveal; then hide again (trains hide).
+  ptsneak = { target = false, make = function() return stealth("sneak") end },
+  pthide  = { target = false, make = function() return stealth("hide")  end },
 
   ------------------------------------------------------------ Raptorian
   tk = {   -- turn undead
@@ -1503,7 +1546,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.31"
+C.version = "0.32"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
