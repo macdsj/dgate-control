@@ -1244,6 +1244,8 @@ local function stealth(kind)
     cast = "invo sneak",   -- the shadow slinking spell
     castDelay = 20,        -- fallback wait if the game's "[N sec. delay]" line is missed
     maxCasts  = 3,         -- give up casting after this many tries with no "shadows guide" reply
+    maxFizzles = 5,        -- ...but casts the game interrupts ("runes fly apart") are retried up to this many times
+    fizzleWait = 2,        -- seconds to wait before retrying an interrupted cast
     rets     = 2,     -- ret commands per trip to the back
     delay    = 0.3,   -- pause after a game line before the next command
     retDelay = 3.3,   -- ret carries a 3 sec delay; wait it out
@@ -1251,7 +1253,7 @@ local function stealth(kind)
   }
   local S = { on = true, hidden = false, mode = "adv", retLeft = 0, clear = false,
               useSlink = SNEAK and SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] == true,
-              slink = false, casting = false, castSeen = false, casts = 0, warned = false,
+              slink = false, casting = false, castSeen = false, casts = 0, fizzles = 0, warned = false,
               busyUntil = 0,
               resting = false }
   local timer, watchdog, restTimer
@@ -1410,7 +1412,24 @@ local function stealth(kind)
       -- a cast finished (the "[N sec. delay]" rule above takes it from here)
       { "weaving those runes cost you",  function() if S.casting then S.castSeen = true end end },
       -- the spell is up / still up / gone
-      { "the shadows seem to guide your movements",   function() S.slink = true; S.casts = 0 end },
+      -- the cast was interrupted ("The summoning of this spell was interfered with by what you have
+      -- readied!"): the FPs are gone but no spell. Try again soon; these don't count toward maxCasts.
+      { "the runes quickly fly apart after being called", function()
+          if not S.casting then return end
+          S.fizzles = S.fizzles + 1
+          S.casts = math.max(0, S.casts - 1)
+          S.casting, S.castSeen = false, false
+          timersOff()
+          if S.fizzles &gt; CFG.maxFizzles then
+            S.casts = CFG.maxCasts
+            dg.ctl.warn(NAME .. ": the cast was interrupted " .. CFG.maxFizzles .. " times in a row; training without shadow slinking (halt and start again to retry)")
+            step(0)
+          else
+            dg.ctl.say(NAME .. ": cast interrupted, retrying (" .. S.fizzles .. ")")
+            step(CFG.fizzleWait)
+          end
+        end },
+      { "the shadows seem to guide your movements",   function() S.slink = true; S.casts = 0; S.fizzles = 0 end },
       { "keeping up the shadow slinking on yourself", function() S.slink = true; S.casts = 0 end },
       { "already seems to be a spell of that type",   function() S.slink = true; S.casting = false; step() end },
       { "the shadows cease to guide your movements",  function() S.slink = false; S.casts = 0; step() end },
@@ -1587,7 +1606,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.33"
+C.version = "0.34"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
