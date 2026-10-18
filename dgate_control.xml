@@ -1255,19 +1255,18 @@ local function stealth(kind)
     rest = "rest", stand = "stand",   -- what to send when worn out / to get going again
     restResume = 0.8,  -- get going again once a "** Current fatigue: X out of Y" line shows this fraction
     restMax    = 120,  -- ...or after this many seconds of resting, whichever comes first
-    -- Heal trip: when you run out of fatigue while standing in trip.from, walk to the healer, heal and
-    -- come back instead of resting. Room numbers are your map's. Each step is a command to send or a
-    -- mapper walk to a room; the trip stops the loop (and tells you where you are) if a walk does not
-    -- end in the expected room. Anywhere else, or with no mapper, it just rests.
+    -- Heal trip: when you run out of fatigue, walk to the healer, heal and walk back, then carry on.
+    -- Room numbers are your map's. Each step is a command to send or a mapper walk to a room; the trip
+    -- stops the loop (and tells you where you are) if a walk does not end in the expected room. With
+    -- no mapper, or a map that does not know where you are, it just rests. Set trip.from to a room
+    -- number to make the trip happen only when you are standing there.
     trip = {
       enabled  = true,
-      from     = 10509,         -- the practice room
+      from     = nil,           -- nil = from anywhere
       low      = 8,             -- go when a "Current fatigue" line shows this much or less
-      out  = { { cmd = "open door" }, { cmd = "go door" }, { cmd = "close door" },
-               { walk = 10505 }, { cmd = "go portal" }, { walk = 184 } },
+      out  = { { walk = 184 } },                -- the healer's hut
       heal = "shop heal",       -- retried while the game says you are still in combat
-      back = { { walk = 11933 }, { cmd = "go portal" }, { walk = 10507 },
-               { cmd = "open door" }, { cmd = "go door" }, { cmd = "close door" } },
+      back = { { walk = 11933 } },              -- where training carries on
       stepWait = 2.5,   -- seconds after each plain command
       walkMax  = 90,    -- give up on one walk after this long
       healTries = 8, healWait = 4,
@@ -1471,12 +1470,12 @@ local function stealth(kind)
   local function exhausted()
     if S.resting or S.trip or not S.on then return end
     local TR = CFG.trip
-    if TR and TR.enabled and mapRoom() == TR.from and map.speedwalk then startTrip(); return end
     local why
     if not (TR and TR.enabled) then why = "heal trip is switched off"
     elseif not (map and map.speedwalk) then why = "no mapper script loaded"
     elseif not mapRoom() then why = "the map does not know which room you are in"
-    else why = "the map says room " .. tostring(mapRoom()) .. ", the heal trip starts from room " .. tostring(TR.from) end
+    elseif TR.from and mapRoom() ~= TR.from then why = "the map says room " .. tostring(mapRoom()) .. ", the heal trip starts from room " .. tostring(TR.from) end
+    if not why then startTrip(); return end
     dg.ctl.say(NAME .. ": no heal trip (" .. why .. ")")
     startRest()
   end
@@ -1857,7 +1856,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.37"
+C.version = "0.38"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
