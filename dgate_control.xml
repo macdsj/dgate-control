@@ -241,7 +241,14 @@ dg.ctl.send("put " .. (matches[2] or "") .. " in carry")</script>
         </Alias>
         <Alias isActive="yes" isFolder="no">
           <name>renew</name>
-          <script>dg.ctl.sendArg("shop renew", matches[2])</script>
+          <script>local arg = (matches[2] or ""):gsub("^%s+", ""):gsub("%s+$", "")
+if arg == "" then
+  dg.ctl.send("shoprenew")
+elseif arg:lower() == "all" then
+  dg.ctl.send("shoprenewall")
+else
+  dg.ctl.send("shop renew " .. arg)
+end</script>
           <command />
           <packageName />
           <regex>^renew(?:\s+(.*))?$</regex>
@@ -1904,7 +1911,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.43"
+C.version = "0.44"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
