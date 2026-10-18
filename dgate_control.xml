@@ -1251,7 +1251,7 @@ local beatRules = {
 -- so every command waits for the game's answer to the last one. Any "[N sec. delay]" line pushes the
 -- "no reply" watchdog out by that long, so a long cast never looks like a stall.
 local function stealth(kind)
-  local BASIC = (kind == "basic")                 -- ptsneakb: sneak training with no healer/rest/training trips
+  local BASIC = (kind == "basic")                 -- ptsneakb: sneak training with no healer or training trips (rests when tired)
   local SNEAK = (kind == "sneak") or BASIC
   local NAME  = BASIC and "ptsneakb" or (SNEAK and "ptsneak" or "pthide")
   local SLINK_CHARS = { kressa = true, katie = true, kasper = true }   -- who keeps shadow slinking up (ptsneak only)
@@ -1504,7 +1504,7 @@ local function stealth(kind)
   -- Out of fatigue: the healer trip when we are in the practice room and the mapper can walk, else rest.
   local function exhausted()
     if S.resting or S.trip or not S.on then return end
-    if BASIC then return end   -- ptsneakb never goes for a heal or a rest
+    if BASIC then startRest(); return end   -- ptsneakb: no heal trip, just rest and let the pocket healer work
     local TR = CFG.trip
     local why
     if not (TR and TR.enabled) then why = "heal trip is switched off"
@@ -1537,11 +1537,7 @@ local function stealth(kind)
       -- worn out: rest (the game says one of these when fatigue is gone)
       { "warning: current fatigue below",       exhausted },
       { "don't have enough energy to do that",  function()
-          if BASIC then   -- a pocket healer is on the way: wait a moment and try that again
-            if S.casting then S.casting, S.castSeen, S.casts = false, false, math.max(0, S.casts - 1) end
-            timersOff()
-            step(CFG.basicWait)
-          elseif S.trip then
+          if S.trip then
             if S.trip.onNoEnergy then S.trip.onNoEnergy() end   -- mid-walk: wait and walk again
           else
             exhausted()
@@ -1908,7 +1904,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.42"
+C.version = "0.43"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
