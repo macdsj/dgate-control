@@ -1361,7 +1361,12 @@ local function stealth(kind)
   end
 
   ---------------------------------------------------------------- heal trip
-  local function mapRoom() return map and map.currentRoom end
+  -- which room the mapper has us in (Mudlet's own player room first, then the generic mapper's)
+  local function mapRoom()
+    local r = getPlayerRoom and getPlayerRoom()
+    if not r or r &lt; 0 then r = map and map.currentRoom end
+    return tonumber(r)
+  end
 
   local function tripCleanup()
     local T = S.trip
@@ -1396,35 +1401,19 @@ local function stealth(kind)
       dg.ctl.send(st.cmd); after(CFG.trip.stepWait)
 
     elseif st.walk then
+      -- send your own  walkto  command, then watch the mapper until it says we are there
       if mapRoom() == st.walk then after(0.5); return end
-      if not (map and map.speedwalk) then tripAbort("no mapper script"); return end
-      local waited = 0
-      local function go()
+      dg.ctl.say(NAME .. ": walkto " .. st.walk)
+      expandAlias("walkto " .. st.walk)
+      local t0, seen = now(), 0
+      local function poll()
         T.timer = nil
-        if not mapRoom() then   -- the mapper is still working out where we are
-          waited = waited + 1
-          if waited &gt; 8 then tripAbort("the map lost your position"); return end
-          T.timer = tempTimer(1, go); return
-        end
-        dg.ctl.say(NAME .. ": walking to room " .. st.walk)
-        T.handler = registerAnonymousEventHandler("sysSpeedwalkFinished", function()
-          if T.handler then killAnonymousEventHandler(T.handler); T.handler = nil end
-          if T.guard then killTimer(T.guard); T.guard = nil end
-          T.timer = tempTimer(2, function()
-            T.timer = nil
-            if mapRoom() == st.walk then tripNext(i + 1)
-            else tripAbort("expected room " .. st.walk) end
-          end)
-        end)
-        T.guard = tempTimer(CFG.trip.walkMax, function()
-          T.guard = nil
-          if T.handler then killAnonymousEventHandler(T.handler); T.handler = nil end
-          tripAbort("the walk to " .. st.walk .. " took too long")
-        end)
-        local ok, err = pcall(map.speedwalk, st.walk)
-        if not ok then tripAbort("walk error: " .. tostring(err)) end
+        if mapRoom() == st.walk then seen = seen + 1 else seen = 0 end
+        if seen &gt;= 2 then tripNext(i + 1); return end   -- there, and still there a second later
+        if now() - t0 &gt; CFG.trip.walkMax then tripAbort("the walk to room " .. st.walk .. " did not end there"); return end
+        T.timer = tempTimer(1, poll)
       end
-      go()
+      T.timer = tempTimer(2, poll)
 
     elseif st.heal then
       T.healTries = 0
@@ -1472,8 +1461,7 @@ local function stealth(kind)
     local TR = CFG.trip
     local why
     if not (TR and TR.enabled) then why = "heal trip is switched off"
-    elseif not (map and map.speedwalk) then why = "no mapper script loaded"
-    elseif not mapRoom() then why = "the map does not know which room you are in"
+    elseif not mapRoom() then why = "the mapper has not told Mudlet which room you are in"
     elseif TR.from and mapRoom() ~= TR.from then why = "the map says room " .. tostring(mapRoom()) .. ", the heal trip starts from room " .. tostring(TR.from) end
     if not why then startTrip(); return end
     dg.ctl.say(NAME .. ": no heal trip (" .. why .. ")")
@@ -1856,7 +1844,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.38"
+C.version = "0.39"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
