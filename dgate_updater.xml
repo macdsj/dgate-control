@@ -43,9 +43,10 @@ U.owner    = "macdsj"
 U.codeRepo = "dgate-control"      -- public: the control package
 U.hlRepo   = "dgate-highlights"   -- private (optional): dg_highlights.lua, needs dg_token.txt
 U.branch   = "main"
+U.version  = "1.1"                -- this updater's own version (UPDATER_VERSION in the repo)
 
-local function say(m)  cecho("\n&lt;255,255,85&gt;[dgupdate]&lt;reset&gt; " .. m .. "\n") end
-local function warn(m) cecho("\n&lt;255,85,85&gt;[dgupdate]&lt;reset&gt; " .. m .. "\n") end
+local function say(m)  decho("\n&lt;255,255,85&gt;[dgupdate]&lt;reset&gt; " .. m .. "\n") end
+local function warn(m) decho("\n&lt;255,85,85&gt;[dgupdate]&lt;reset&gt; " .. m .. "\n") end
 local function trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 
 -- the per-computer folder (same one the highlights stub reads from)
@@ -119,9 +120,35 @@ local function isInstalled(name)
   return false
 end
 
+-- the updater updates itself first, then asks you to run dgupdate again
+local function updateSelf(dir, cb)
+  get(rawUrl(U.codeRepo, "UPDATER_VERSION"), nil, function(ok, body)
+    local remote = ok and tostring(body):match("%d[%d%.]*")
+    if not remote or remote == U.version then cb(); return end
+    say("updating the updater itself: " .. U.version .. " -&gt; " .. remote)
+    get(rawUrl(U.codeRepo, "dgate_updater.xml"), nil, function(ok2, xml)
+      if not ok2 or not tostring(xml):find("&lt;MudletPackage", 1, true) then
+        warn("the updater download failed; carrying on with the current one."); cb(); return
+      end
+      local path = dir .. "/dgate_updater.xml"
+      if not writeFile(path, xml) then warn("could not save the new updater; carrying on."); cb(); return end
+      if isInstalled("dgate_updater") then uninstallPackage("dgate_updater") end
+      tempTimer(1, function()
+        installPackage(path)
+        cecho("\n")
+        decho("&lt;255,255,85&gt;[dgupdate]&lt;reset&gt; updater replaced. Type  dgupdate  again to update the control package.\n")
+      end)
+    end)
+  end)
+end
+
 function U.update(force)
   local dir = U.dir()
   say("checking " .. U.owner .. "/" .. U.codeRepo .. " ...")
+  updateSelf(dir, function() U.updateControl(dir, force) end)
+end
+
+function U.updateControl(dir, force)
   get(rawUrl(U.codeRepo, "VERSION"), nil, function(ok, body)
     if not ok then warn("could not reach GitHub (" .. tostring(body) .. "). Nothing was changed."); return end
     local remote = tostring(body):match("%d[%d%.]*")
@@ -129,6 +156,20 @@ function U.update(force)
     if remote and remote == mine and not force then
       say("control package is already current (" .. mine .. ").")
       U.highlights(dir)
+      return
+    end
+    local function older(a, b)   -- is version a older than b?  ("0.39" &lt; "0.40")
+      local pa, pb = {}, {}
+      for n in tostring(a):gmatch("%d+") do pa[#pa + 1] = tonumber(n) end
+      for n in tostring(b):gmatch("%d+") do pb[#pb + 1] = tonumber(n) end
+      for k = 1, math.max(#pa, #pb) do
+        local x, y = pa[k] or 0, pb[k] or 0
+        if x ~= y then return x &lt; y end
+      end
+      return false
+    end
+    if remote and mine and older(remote, mine) and not force then
+      say("GitHub shows " .. remote .. " but you have " .. mine .. " -- GitHub's file cache can lag a few minutes after an update. Try again in a few minutes.")
       return
     end
     say("updating the control package: " .. tostring(mine) .. " -&gt; " .. tostring(remote))
