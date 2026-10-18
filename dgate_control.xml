@@ -1270,6 +1270,8 @@ local function stealth(kind)
       stepWait = 2.5,   -- seconds after each plain command
       walkMax  = 90,    -- give up on one walk after this long
       healTries = 8, healWait = 4,
+      energyWait = 15,  -- too tired to even walk: wait this long, then send walkto again
+      energyTries = 12, -- ...up to this many times
     },
     -- Skill training trip: when the game says a skill is ready, walk to the training room, trainall,
     -- walk back to where training carries on, and resume.
@@ -1415,19 +1417,35 @@ local function stealth(kind)
       end)
 
     elseif st.walk then
-      -- send your own  walkto  command, then watch the mapper until it says we are there
+      -- send your own  walkto  command, then watch the mapper until it says we are there.
+      -- If the game says we are too tired to move, stop the mapper's walk, wait, and send it again.
       if mapRoom() == st.walk then after(0.5); return end
-      dg.ctl.say(NAME .. ": walkto " .. st.walk)
-      expandAlias("walkto " .. st.walk)
-      local t0, seen = now(), 0
-      local function poll()
+      local t0, seen, tries = now(), 0, 0
+      local poll
+      local function begin()
+        dg.ctl.say(NAME .. ": walkto " .. st.walk)
+        expandAlias("walkto " .. st.walk)
+        t0, seen = now(), 0
+        T.timer = tempTimer(2, poll)
+      end
+      poll = function()
         T.timer = nil
         if mapRoom() == st.walk then seen = seen + 1 else seen = 0 end
-        if seen &gt;= 2 then tripNext(i + 1); return end   -- there, and still there a second later
+        if seen &gt;= 2 then T.onNoEnergy = nil; tripNext(i + 1); return end   -- there, and still there a second later
         if now() - t0 &gt; CFG.trip.walkMax then tripAbort("the walk to room " .. st.walk .. " did not end there"); return end
         T.timer = tempTimer(1, poll)
       end
-      T.timer = tempTimer(2, poll)
+      T.onNoEnergy = function()
+        if T.waiting then return end
+        T.waiting = true
+        if T.timer then killTimer(T.timer); T.timer = nil end
+        if map and map.stopSpeedwalk then pcall(map.stopSpeedwalk) end   -- the mapper keeps sending steps otherwise
+        tries = tries + 1
+        if tries &gt; CFG.trip.energyTries then tripAbort("still too tired to walk after " .. CFG.trip.energyTries .. " waits"); return end
+        dg.ctl.say(NAME .. ": too tired to walk -- waiting " .. CFG.trip.energyWait .. "s, then trying again (" .. tries .. ")")
+        T.timer = tempTimer(CFG.trip.energyWait, function() T.timer = nil; T.waiting = false; begin() end)
+      end
+      begin()
 
     elseif st.heal then
       T.healTries = 0
@@ -1508,7 +1526,13 @@ local function stealth(kind)
       { "you reveal yourself",                  function() S.hidden = false; S.clear = SNEAK; step() end },
       -- worn out: rest (the game says one of these when fatigue is gone)
       { "warning: current fatigue below",       exhausted },
-      { "don't have enough energy to do that",  exhausted },
+      { "don't have enough energy to do that",  function()
+          if S.trip then
+            if S.trip.onNoEnergy then S.trip.onNoEnergy() end   -- mid-walk: wait and walk again
+          else
+            exhausted()
+          end
+        end },
       { "too exhausted to keep up",             exhausted },
       -- the game prints "** Current fatigue: X out of Y" now and then: enough to get going again?
       { "current fatigue:*out of",              function()
@@ -1868,7 +1892,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.40"
+C.version = "0.41"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
