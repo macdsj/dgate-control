@@ -153,6 +153,13 @@ dg.ctl.send("get boot")</script>
           <regex>^ptsneak$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>ptsneakb</name>
+          <script>dg.ctl.loopStart("ptsneakb", "")</script>
+          <command />
+          <packageName />
+          <regex>^ptsneakb$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>pthide</name>
           <script>dg.ctl.loopStart("pthide", "")</script>
           <command />
@@ -1244,8 +1251,9 @@ local beatRules = {
 -- so every command waits for the game's answer to the last one. Any "[N sec. delay]" line pushes the
 -- "no reply" watchdog out by that long, so a long cast never looks like a stall.
 local function stealth(kind)
-  local SNEAK = (kind == "sneak")
-  local NAME  = SNEAK and "ptsneak" or "pthide"
+  local BASIC = (kind == "basic")                 -- ptsneakb: sneak training with no healer/rest/training trips
+  local SNEAK = (kind == "sneak") or BASIC
+  local NAME  = BASIC and "ptsneakb" or (SNEAK and "ptsneak" or "pthide")
   local SLINK_CHARS = { kressa = true, katie = true, kasper = true }   -- who keeps shadow slinking up (ptsneak only)
   local CFG = {
     hide = "hide", adv = "adv 1", ret = "ret",
@@ -1288,6 +1296,7 @@ local function stealth(kind)
     delay    = 0.3,   -- pause after a game line before the next command
     retDelay = 3.3,   -- ret carries a 3 sec delay; wait it out
     stall    = 10,    -- seconds of silence (after any game delay) before it re-evaluates and resends
+    basicWait = 8,    -- ptsneakb: seconds to wait and try again when the game says you are too tired
   }
   local S = { on = true, hidden = false, mode = "adv", retLeft = 0, clear = false,
               useSlink = SNEAK and SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] == true,
@@ -1495,6 +1504,7 @@ local function stealth(kind)
   -- Out of fatigue: the healer trip when we are in the practice room and the mapper can walk, else rest.
   local function exhausted()
     if S.resting or S.trip or not S.on then return end
+    if BASIC then return end   -- ptsneakb never goes for a heal or a rest
     local TR = CFG.trip
     local why
     if not (TR and TR.enabled) then why = "heal trip is switched off"
@@ -1527,7 +1537,11 @@ local function stealth(kind)
       -- worn out: rest (the game says one of these when fatigue is gone)
       { "warning: current fatigue below",       exhausted },
       { "don't have enough energy to do that",  function()
-          if S.trip then
+          if BASIC then   -- a pocket healer is on the way: wait a moment and try that again
+            if S.casting then S.casting, S.castSeen, S.casts = false, false, math.max(0, S.casts - 1) end
+            timersOff()
+            step(CFG.basicWait)
+          elseif S.trip then
             if S.trip.onNoEnergy then S.trip.onNoEnergy() end   -- mid-walk: wait and walk again
           else
             exhausted()
@@ -1547,6 +1561,7 @@ local function stealth(kind)
         end },
       -- a skill is ready to be trained: go and train (after the current trip / rest, if one is running)
       { "you now feel prepared to train further in", function()
+          if BASIC then return end   -- ptsneakb stays where it is
           if S.trip and S.trip.name == "train" then return end   -- trainall will cover it
           if S.trip or S.resting then S.trainPending = true else startTrip("train") end
         end },
@@ -1760,6 +1775,7 @@ dg.ctlLoops = {
   --   pthide  : hide, and when hidden, reveal; then hide again (trains hide).
   ptsneak = { target = false, make = function() return stealth("sneak") end },
   pthide  = { target = false, make = function() return stealth("hide")  end },
+  ptsneakb = { target = false, make = function() return stealth("basic") end },   -- ptsneak without any trips (pocket healer)
 
   disme = { target = false, make = function() return disguiseLoop(false) end },   -- disme name Ferrets Down
   ptdis = { target = false, make = function() return disguiseLoop(true)  end },   -- ptdis name Ferrets Down
@@ -1892,7 +1908,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.41"
+C.version = "0.42"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
