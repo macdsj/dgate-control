@@ -1907,7 +1907,7 @@ local function healerLoop()
   local LWHO = WHO:lower()
   local CFG  = {
     cast      = "invoke vigor " .. LWHO,   -- what to cast (override: dg.ctl.healCast = "invo 2 jen")
-    casts     = 2,
+    casts     = tonumber(dg.ctl.healCasts) or 3,   -- vigors per rest (override: dg.ctl.healCasts = 2)
     adv = "adv 1", ret = "ret",
     alignMax  = 12,   -- most moves while lining up
     alignWait = 12,   -- seconds with no usable answer before it gives up on this rest
@@ -2163,7 +2163,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.53"
+C.version = "0.54"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
