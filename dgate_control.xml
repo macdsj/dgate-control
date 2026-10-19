@@ -1328,6 +1328,8 @@ local function stealth(kind)
     delay    = 0.3,   -- pause after a game line before the next command
     retDelay = 3.3,   -- ret carries a 3 sec delay; wait it out
     stall    = 10,    -- seconds of silence (after any game delay) before it re-evaluates and resends
+    standMax  = 4,    -- how many times to ask to stand up before carrying on anyway
+    standWait = 4,    -- seconds to wait for "You stand up." before asking again
     alignMax  = 12,   -- ptsneakf: most advance/retreat moves while lining up with the healer
     alignWait = 12,   -- ptsneakf: seconds without a usable "tac" answer before it just rests where it is
     basicWait = 8,    -- ptsneakb: seconds to wait and try again when the game says you are too tired
@@ -1384,7 +1386,7 @@ local function stealth(kind)
 
   step = function(wait)
     if not S.on then return end
-    if S.resting or S.trip or S.align then return end   -- worn out (resting / off to the healer / lining up); those resume us
+    if S.resting or S.trip or S.align or S.standing then return end   -- worn out (resting / off to the healer / lining up); those resume us
     if S.casting then return end   -- a cast is in flight; its "[N sec. delay]" line resumes us
     if S.trainPending then S.trainPending = false; startTrip("train"); return end   -- a skill is ready to train
     if S.useSlink and not S.slink then
@@ -1404,15 +1406,36 @@ local function stealth(kind)
     else queue(CFG.ret, wait) end
   end
 
+  -- Get up after a rest. Nothing else is sent until the game says "You stand up." (a later command
+  -- would just be refused with "You must stand up first!"). If no answer comes, ask again a few times.
+  local standTimer
+  local function standUp()
+    if standTimer then killTimer(standTimer); standTimer = nil end
+    if not S.standing then return end
+    S.standing = false
+    step(1)
+  end
+  local function askStand()
+    if standTimer then killTimer(standTimer); standTimer = nil end
+    S.standTries = (S.standTries or 0) + 1
+    if S.standTries > CFG.standMax then
+      dg.ctl.warn(NAME .. ": no answer to " .. CFG.stand .. " after " .. CFG.standMax .. " tries; carrying on anyway")
+      standUp()
+      return
+    end
+    dg.ctl.send(CFG.stand)
+    standTimer = tempTimer(CFG.standWait, function() standTimer = nil; if S.on and S.standing then askStand() end end)
+  end
+
   -- Out of fatigue: stop sending anything, rest, and resume when fatigue is back up.
   local function endRest(why)
     if not S.resting then return end
     S.resting = false
     if restTimer then killTimer(restTimer); restTimer = nil end
-    dg.ctl.say(NAME .. ": done resting (" .. why .. "), carrying on")
+    dg.ctl.say(NAME .. ": done resting (" .. why .. "), standing up")
     dg.ctl.send("q c")
-    dg.ctl.send(CFG.stand)
-    step(1.5)
+    S.standing, S.standTries = true, 0
+    askStand()
   end
 
   ---------------------------------------------------------------- heal trip
@@ -1609,8 +1632,18 @@ local function stealth(kind)
     target = false,
     qc = true,
     start = function() step(0) end,
-    onStop = function() S.on = false; S.align = nil; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
+    onStop = function() S.on = false; S.align = nil; S.standing = false; if standTimer then killTimer(standTimer); standTimer = nil end; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
     rules = {
+      -- getting up after a rest
+      { "you stand up",                         function() standUp() end },
+      { "you are already standing",             function() standUp() end },
+      { "you must stand up first",              function()
+          if S.on and not S.resting then
+            if not S.standing then S.standing, S.standTries = true, 0 end
+            timersOff()
+            askStand()
+          end
+        end },
       -- hiding
       { "you slip into the shadows",            function() S.hidden = true;  step() end },
       { "you are already unable to be seen",    function() S.hidden = true;  step() end },
@@ -2029,7 +2062,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.48"
+C.version = "0.49"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
