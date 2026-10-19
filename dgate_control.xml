@@ -1290,6 +1290,13 @@ local beatRules = {
 -- Only ONE command is ever in flight (the game's type-ahead queue is tiny and ret has a 3s delay),
 -- so every command waits for the game's answer to the last one. Any "[N sec. delay]" line pushes the
 -- "no reply" watchdog out by that long, so a long cast never looks like a stall.
+local function listHas(l, name)   -- "Fropwaffle, Jennifer" -> is "jennifer" one of the names on this line?
+  for tok in tostring(l):lower():gmatch("[^,]+") do
+    if (tok:gsub("^%s+", ""):gsub("[%s%.]+$", "")) == name then return true end
+  end
+  return false
+end
+
 local function stealth(kind)
   local FOLLOW = (kind == "follow")               -- ptsneakf: when tired, line up with the healer's rank, then rest
   local BASIC = (kind == "basic") or FOLLOW       -- ptsneakb/f: sneak training with no healer or training trips (rests when tired)
@@ -1741,8 +1748,8 @@ local function stealth(kind)
       { "standing in this rank",     seen("same") },
       { HEALER, function()
           if not (S.align and S.align.sec and not S.align.waitMove) then return end
-          local l = ((line or (getCurrentLine and getCurrentLine()) or ""):lower()):gsub("^%s+", "")
-          if l:sub(1, #HEALER) ~= HEALER or l:find("standing", 1, true) then return end
+          local l = line or (getCurrentLine and getCurrentLine()) or ""
+          if not listHas(l, HEALER) then return end
           alignSeen(S.align.sec)
         end },
     }
@@ -1937,8 +1944,8 @@ local function healerLoop()
 
   local function nameLine()
     if not (S.on and S.align and S.align.sec and not S.align.waitMove) then return end
-    local l = ((line or (getCurrentLine and getCurrentLine()) or ""):lower()):gsub("^%s+", "")
-    if l:sub(1, #LWHO) ~= LWHO or l:find("standing", 1, true) or l:find("rest", 1, true) then return end
+    local l = line or (getCurrentLine and getCurrentLine()) or ""
+    if not listHas(l, LWHO) then return end
     local sec = S.align.sec
     if sec == "same" then
       done(WHO .. " is in your rank -- casting")
@@ -2156,7 +2163,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.52"
+C.version = "0.53"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
