@@ -169,6 +169,15 @@ dg.ctl.loopStart("ptsneakf", "")</script>
           <regex>^ptsneakf(?:\s+(\S+))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>healer</name>
+          <script>local who = (matches[2] or ""):gsub("^%s+", ""):gsub("%s+$", "")
+if who ~= "" then dg.ctl.restName = who end
+dg.ctl.loopStart("healer", "")</script>
+          <command />
+          <packageName />
+          <regex>^healer(?:\s+(\S+))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>ptsneakb</name>
           <script>dg.ctl.loopStart("ptsneakb", "")</script>
           <command />
@@ -1882,6 +1891,87 @@ local function disguiseLoop(train)
   }
 end
 
+-- Pocket healer (run this on the healer's own character). healer [NAME]  watches for
+-- "NAME settles in to rest.", finds NAME's rank with "tac", advances or retreats until you stand in the
+-- same rank, then casts vigor on NAME CFG.casts times. It then waits for the next rest.
+local function healerLoop()
+  local WHO  = tostring(dg.ctl.restName or "Jennifer")
+  local LWHO = WHO:lower()
+  local CFG  = {
+    cast      = "invoke vigor " .. LWHO,   -- what to cast (override: dg.ctl.healCast = "invo 2 jen")
+    casts     = 2,
+    adv = "adv 1", ret = "ret",
+    alignMax  = 12,   -- most moves while lining up
+    alignWait = 12,   -- seconds with no usable answer before it gives up on this rest
+  }
+  if dg.ctl.healCast and dg.ctl.healCast ~= "" then CFG.cast = dg.ctl.healCast end
+  local S = { on = true, align = nil }
+  local failsafe
+  local function now() return (getEpoch and getEpoch()) or os.time() end
+  local function killFail() if failsafe then killTimer(failsafe); failsafe = nil end end
+  local function done(why)
+    killFail(); S.align = nil
+    if why then dg.ctl.say("healer: " .. why) end
+  end
+  local function arm()
+    killFail()
+    failsafe = tempTimer(CFG.alignWait, function()
+      failsafe = nil
+      if S.on and S.align then done("no word on where " .. WHO .. " stands -- giving up on this rest") end
+    end)
+  end
+  local function ask()
+    S.align.sec, S.align.waitMove = nil, false
+    dg.ctl.send("tac")
+    arm()
+  end
+  local function begin()
+    if not S.on then return end
+    S.align = { moves = 0 }
+    dg.ctl.say("healer: " .. WHO .. " is resting -- finding her rank")
+    ask()
+  end
+  local function seen(sec) return function() if S.align then S.align.sec = sec end end end
+  local function moved() if S.align and S.align.waitMove then ask() end end
+
+  local function nameLine()
+    if not (S.on and S.align and S.align.sec and not S.align.waitMove) then return end
+    local l = ((line or (getCurrentLine and getCurrentLine()) or ""):lower()):gsub("^%s+", "")
+    if l:sub(1, #LWHO) ~= LWHO or l:find("standing", 1, true) or l:find("rest", 1, true) then return end
+    local sec = S.align.sec
+    if sec == "same" then
+      done(WHO .. " is in your rank -- casting")
+      for _ = 1, CFG.casts do dg.ctl.send(CFG.cast) end
+      return
+    end
+    S.align.moves = S.align.moves + 1
+    if S.align.moves > CFG.alignMax then done("still not level with " .. WHO .. " after " .. CFG.alignMax .. " moves -- giving up"); return end
+    S.align.sec, S.align.waitMove = nil, true
+    dg.ctl.send(sec == "front" and CFG.adv or CFG.ret)
+    arm()
+  end
+
+  return {
+    target = false,
+    start = function() dg.ctl.say("healer: waiting for " .. WHO .. " to rest (casting: " .. CFG.cast .. " x" .. CFG.casts .. ")") end,
+    onStop = function() S.on = false; S.align = nil; killFail() end,
+    rules = {
+      { LWHO .. " settles in to rest", begin },
+      { "standing in front of you",    seen("front") },
+      { "standing behind you",         seen("behind") },
+      { "standing in this rank",       seen("same") },
+      { LWHO,                          nameLine },
+      { "you advance another",         moved },
+      { "you cannot advance further",  moved },
+      { "you retreat",                 moved },
+      { "you may not retreat any further", moved },
+      { "don't have enough energy to do that", function()
+          if S.align then done("too tired to move -- casting from here"); for _ = 1, CFG.casts do dg.ctl.send(CFG.cast) end end
+        end },
+    },
+  }
+end
+
 dg.ctlLoops = {
 
   ------------------------------------------------------------ generic (every character)
@@ -1923,6 +2013,7 @@ dg.ctlLoops = {
   ptsneakf = { target = false, make = function() return stealth("follow") end },   -- ptsneakb, but lines up with the healer before resting
   ptsneakb = { target = false, make = function() return stealth("basic") end },   -- ptsneak without any trips (pocket healer)
 
+  healer = { target = false, make = function() return healerLoop() end },   -- healer [Name]: pocket healer for a resting partner
   disme = { target = false, make = function() return disguiseLoop(false) end },   -- disme name Ferrets Down
   ptdis = { target = false, make = function() return disguiseLoop(true)  end },   -- ptdis name Ferrets Down
 
@@ -2064,7 +2155,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.50"
+C.version = "0.51"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
