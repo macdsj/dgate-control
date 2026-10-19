@@ -1666,15 +1666,13 @@ local function disguiseLoop(train)
   local G     = (dg.ctl.disgGoal and dg.ctl.disgGoal.fields) or {}
   local ORDER = { "name", "race", "sex", "class" }
   local CFG   = {
-    gap      = 5,    -- disme: seconds between attempts while it has not taken yet
-    trainGap = 60,   -- ptdis: seconds between training attempts (what your own training used)
-    stall    = 10,   -- no "info disguise" answer for this long (plus any game delay): try again
+    disguiseWait = 90, -- failsafe only: seconds to wait for "Disguise in place" (the game's own delay is 60)
+    stall    = 30,   -- failsafe only: the game says nothing for this long (plus any delay it announced)
   }
-  local S = { on = true, tries = 0, ok = {}, busyUntil = 0 }
-  local timer, watchdog
+  local S = { on = true, tries = 0, ok = {}, busyUntil = 0, waiting = nil, idx = 0 }
+  local watchdog
   local function now() return (getEpoch and getEpoch()) or os.time() end
   local function off()
-    if timer    then killTimer(timer);    timer    = nil end
     if watchdog then killTimer(watchdog); watchdog = nil end
   end
 
@@ -1693,62 +1691,78 @@ local function disguiseLoop(train)
     return false
   end
 
-  local attempt
-  local function schedule(wait)
-    off()
-    wait = math.max(wait, S.busyUntil - now() + 0.3)
-    timer = tempTimer(wait, function() timer = nil; if S.on then attempt() end end)
-  end
-
-  attempt = function()
-    S.tries = S.tries + 1
-    for _, f in ipairs(ORDER) do
-      local v = G[f]
-      if v and (train or not S.ok[f]) then dg.ctl.send("disguise " .. f .. " as " .. v) end
-    end
+  -- No timers drive this: the game's own 60-second disguise delay paces it. One command goes out,
+  -- then we wait for "Disguise in place" (the game finished), then ask "info disguise", then decide.
+  -- The only timer is a failsafe that asks "info disguise" again if the game goes quiet for a long time.
+  local armWatch
+  local function askInfo()
+    S.waiting = "info"
     dg.ctl.send("info disguise")
-    if watchdog then killTimer(watchdog) end
-    watchdog = tempTimer(CFG.stall + math.max(0, S.busyUntil - now()), function()
+    armWatch()
+  end
+  armWatch = function()
+    off()
+    -- after a disguise command the game is busy for about a minute: do not worry before then
+    local wait = (S.waiting == "disg" and CFG.disguiseWait or CFG.stall) + math.max(0, S.busyUntil - now())
+    watchdog = tempTimer(wait, function()
       watchdog = nil
-      if S.on then dg.ctl.say(NAME .. ": no answer from info disguise, trying again"); attempt() end
+      if S.on then dg.ctl.say(NAME .. ": the game has gone quiet, checking the disguise again"); askInfo() end
     end)
   end
 
+  local function nextField()
+    for i = 1, #ORDER do
+      local f
+      if train then S.idx = S.idx % #ORDER + 1; f = ORDER[S.idx] else f = ORDER[i] end
+      if G[f] and (train or not S.ok[f]) then return f, G[f] end
+    end
+  end
+  local function sendNext()
+    local f, v = nextField()
+    if not f then dg.ctl.loopStop("nothing to change"); return end
+    S.tries = S.tries + 1
+    S.waiting = "disg"
+    dg.ctl.send("disguise " .. f .. " as " .. v)
+    armWatch()
+  end
+
   local function answered()
-    if watchdog then killTimer(watchdog); watchdog = nil end
+    if S.waiting ~= "info" then return end
+    off()
     local info = parse(line or (getCurrentLine and getCurrentLine()) or "")
-    if not info then schedule(CFG.gap); return end   -- "You are not disguised." or unreadable: go again
     local all = true
     for _, f in ipairs(ORDER) do
       local v = G[f]
       if v then
-        if has(info, f, v) then S.ok[f] = true else S.ok[f] = nil; all = false end
+        if info and has(info, f, v) then S.ok[f] = true else S.ok[f] = nil; all = false end
       end
     end
-    local now_ = info.name .. ", " .. info.sex .. " " .. info.rest
+    local now_ = info and (info.name .. ", " .. info.sex .. " " .. info.rest) or "not disguised"
     if train then
       dg.ctl.say(NAME .. ": attempt " .. S.tries .. " done -- now " .. now_)
-      schedule(CFG.trainGap)
+      sendNext()
     elseif all then
       dg.ctl.say(NAME .. ": done after " .. S.tries .. " attempt(s) -- you are " .. now_)
       dg.ctl.loopStop("disguised")
     else
-      dg.ctl.say(NAME .. ": not yet (attempt " .. S.tries .. ") -- you are " .. now_ .. "; trying again")
-      schedule(CFG.gap)
+      dg.ctl.say(NAME .. ": not there yet (" .. S.tries .. " sent) -- you are " .. now_)
+      sendNext()
     end
   end
 
   return {
     target = false,
-    start = function() attempt() end,
+    start = function()
+      if train then sendNext() else askInfo() end   -- disme looks first, so a disguise that is already right costs nothing
+    end,
     onStop = function() S.on = false; off() end,
     rules = {
-      { "you are disguised as",                  answered },
-      { "you are not disguised",                 answered },
-      { "type-ahead queue full",                 function() schedule(2.5) end },
+      { "disguise in place",   function() if S.waiting == "disg" then askInfo() end end },
+      { "you are disguised as",  answered },
+      { "you are not disguised", answered },
       { "sec. delay", function()
           local n = tonumber((line or (getCurrentLine and getCurrentLine()) or ""):match("(%d+)%s*sec"))
-          if n then S.busyUntil = now() + n end
+          if n then S.busyUntil = now() + n; if watchdog then armWatch() end end
         end },
     },
   }
@@ -1935,7 +1949,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.45"
+C.version = "0.46"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
