@@ -2177,7 +2177,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.59"
+C.version = "0.60"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -2661,7 +2661,8 @@ end
 -- second pass: commands whose help mentions a "?" list (set, appearance, ...) get probed with
 -- "COMMAND ?" and "COMMAND OPTION ?" for each option in their Syntax line. Answers -> help_deep.txt
 local SKIP_OPTS = { text = true, args = true, arg = true, value = true, name = true, target = true,
-                    message = true, string = true, number = true, who = true, what = true, how = true }
+                    message = true, string = true, number = true, who = true, what = true, how = true,
+                    topic = true, command = true, action = true, spell = true, player = true }
 function H.deepList()
   local f = io.open(hpath("help_dump.txt"), "r")
   if not f then return nil end
@@ -2693,6 +2694,7 @@ function H.deepList()
       end
     end
   end
+  add("set combat ?")   -- listed in SET's usage line but not in its Syntax line
   return list
 end
 
