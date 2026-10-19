@@ -1624,7 +1624,10 @@ local function stealth(kind)
     S.align.moves = S.align.moves + 1
     if S.align.moves > CFG.alignMax then alignDone("still not level with " .. HEALER .. " after " .. CFG.alignMax .. " moves -- resting here"); return end
     S.align.sec, S.align.waitMove = nil, true
-    dg.ctl.send(sec == "front" and CFG.adv or CFG.ret)
+    -- ADVANCE/RETREAT take a target ("advance fropwaffle" goes to her rank): first try that, then single steps
+    local cmd = (sec == "front") and CFG.adv or CFG.ret
+    if S.align.moves == 1 then cmd = ((sec == "front") and "advance " or "retreat ") .. HEALER end
+    dg.ctl.send(cmd)
     alignArm()
   end
 
@@ -1963,7 +1966,10 @@ local function healerLoop()
     S.align.moves = S.align.moves + 1
     if S.align.moves > CFG.alignMax then done("still not level with " .. WHO .. " after " .. CFG.alignMax .. " moves -- giving up"); return end
     S.align.sec, S.align.waitMove = nil, true
-    dg.ctl.send(sec == "front" and CFG.adv or CFG.ret)
+    -- the game's ADVANCE/RETREAT take a target ("adv jennifer" goes to her rank); first try that, then single steps
+    local cmd = (sec == "front") and CFG.adv or CFG.ret
+    if S.align.moves == 1 then cmd = ((sec == "front") and "advance " or "retreat ") .. LWHO end
+    dg.ctl.send(cmd)
     arm()
   end
 
@@ -2171,7 +2177,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.58"
+C.version = "0.59"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
