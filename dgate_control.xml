@@ -1546,14 +1546,21 @@ local function stealth(kind)
     if why then dg.ctl.say(NAME .. ": " .. why) end
     startRest()
   end
-  local function alignAsk()
-    S.align.sec = nil
-    dg.ctl.send("tac")
+  local function alignArm()
     if alignTimer then killTimer(alignTimer) end
     alignTimer = tempTimer(CFG.alignWait + math.max(0, S.busyUntil - now()), function()
       alignTimer = nil
       if S.on and S.align then alignDone("no word on where " .. HEALER .. " stands -- resting here") end
     end)
+  end
+  local function alignAsk()
+    S.align.sec, S.align.waitMove = nil, false
+    dg.ctl.send("tac")
+    alignArm()
+  end
+  -- the game answered our advance/retreat: only now look again (a move can carry a delay of its own)
+  local function alignMoved()
+    if S.align and S.align.waitMove then alignAsk() end
   end
   local function startAlign()
     if S.align or S.resting or not S.on then return end
@@ -1569,8 +1576,9 @@ local function stealth(kind)
     if sec == "same" then alignDone(HEALER .. " is in your rank -- resting"); return end
     S.align.moves = S.align.moves + 1
     if S.align.moves > CFG.alignMax then alignDone("still not level with " .. HEALER .. " after " .. CFG.alignMax .. " moves -- resting here"); return end
+    S.align.sec, S.align.waitMove = nil, true
     dg.ctl.send(sec == "front" and CFG.adv or CFG.ret)
-    alignAsk()
+    alignArm()
   end
 
   -- Out of fatigue: the healer trip when we are in the practice room and the mapper can walk, else rest.
@@ -1590,6 +1598,7 @@ local function stealth(kind)
 
   -- A retreat answer counts even if we were just revealed (the move still happens).
   local function retDone()
+    alignMoved()
     if S.align or S.mode ~= "ret" then return end
     S.retLeft = S.retLeft - 1
     if S.retLeft &lt;= 0 then S.mode = "adv" end
@@ -1667,8 +1676,9 @@ local function stealth(kind)
   if SNEAK then
     local walk = {
       -- walking to the front
-      { "you advance another",                  function() if S.mode == "adv" and not S.align then step() end end },
+      { "you advance another",                  function() alignMoved(); if S.mode == "adv" and not S.align then step() end end },
       { "you cannot advance further",           function()
+          alignMoved()
           if S.mode == "adv" and not S.align then S.mode, S.retLeft = "ret", CFG.rets; step() end
         end },
       -- going to the back
@@ -1685,7 +1695,7 @@ local function stealth(kind)
       { "standing behind you",       seen("behind") },
       { "standing in this rank",     seen("same") },
       { HEALER, function()
-          if not (S.align and S.align.sec) then return end
+          if not (S.align and S.align.sec and not S.align.waitMove) then return end
           local l = ((line or (getCurrentLine and getCurrentLine()) or ""):lower()):gsub("^%s+", "")
           if l:sub(1, #HEALER) ~= HEALER or l:find("standing", 1, true) then return end
           alignSeen(S.align.sec)
@@ -2019,7 +2029,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.47"
+C.version = "0.48"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
