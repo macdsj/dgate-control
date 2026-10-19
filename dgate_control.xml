@@ -178,6 +178,13 @@ dg.ctl.loopStart("healer", "")</script>
           <regex>^healer(?:\s+(\S+))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>helpcrawl</name>
+          <script>dg.ctl.cmdHelpCrawl(matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^helpcrawl(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>ptsneakb</name>
           <script>dg.ctl.loopStart("ptsneakb", "")</script>
           <command />
@@ -1653,6 +1660,7 @@ local function stealth(kind)
     rules = {
       -- fully rested ("You awaken feeling great. What a refreshing nap."): stop resting and stand
       { "you awaken feeling great",             function() if S.resting then endRest("fully rested") end end },
+      { "you are fully rested",                 function() if S.resting then endRest("fully rested") end end },
       -- getting up after a rest
       { "you stand up",                         function() standUp() end },
       { "you are already standing",             function() standUp() end },
@@ -2163,7 +2171,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.54"
+C.version = "0.56"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -2475,6 +2483,182 @@ function C.cmdDisguise(args, train)
 end
 function C.cmdDisme(args) C.cmdDisguise(args, false) end
 function C.cmdPtdis(args) C.cmdDisguise(args, true) end
+
+---------------------------------------------------------------------------
+-- help crawler:  helpcrawl index | start [N] | stop | status
+-- index  sends "help all", saves the answer to help_index_raw.txt and the command list to help_topics.txt
+--        (one per line; optional -- start has the 341 commands built in).
+-- start  sends "help TOPIC" for each topic in help_topics.txt, one at a time, waiting for the game's
+--        prompt line (">") each time, and appends every answer to help_dump.txt. "start 120" resumes at topic 120.
+-- The files live in the same folder as dg_highlights.lua (your user folder's dg-control on the C drive).
+---------------------------------------------------------------------------
+local H = {}
+C.help = H
+-- the 341 commands "help all" listed on 2026-10-19 (used when you have not made help_topics.txt yet)
+H.builtin = [[
+? north south east west ne nw se sw northeast northwest southeast
+southwest accept action advance ansi appeal appearance applaud arm assist attack babble
+bank bare bat beam belch berserk bestow bite blanch blink blow blush
+bow brand break breathe brief bristle bug burp bye cackle cancel caress
+chant chitter choke chortle chuckle circle claw clap click close comfort command
+concentrate contact cough cower cringe cry cuddle curse curtsy dance deactivate dedicate
+defend delay detect diagnose disarm disband disguise dismount dispel donate drag drain
+draw drink drop drool duck eat emote empty enter-msg entrap examine exhale
+exit exit-msg fan faint fidget fire flail flick flinch flirt flitter flutter
+fly focus-blow follow forget frown full furrow furl get gape gasp gaze
+gesture giggle glance glare gloat glower gnash go greet grin grimace grit
+groan group grovel growl grumble grunt guffaw gulp health help hiccup hide
+hiss hold hop howl hover hug hum identify idea ignore info inhale
+inventory invoke jump kill kick kickmeout killmonster killplayer kiss km kneel knock
+kp look land laugh lay lead lean leave lie link light listen
+load lock lose martial mantle memorize mesmerize moan mount mumble murmur mutter
+nock nod nuzzle offer open pace pant perform pet picklock pickpocket pinch
+play point poke ponder pounce pout pray psionic pull punch purr push
+put quiver quit raise read ready refill remove renounce repeat report request
+rest retreat reveal roar roll rotfl rub salute say scoff scowl scratch
+scream screech scry search set share sheathe shiver shop shout show shriek
+shrug shudder shuffle sigh sing sit skills skin skip slap smash smile
+smirk snap snarl sneer sneeze snicker sniff sniffle snort snuggle sob speak
+spells spit split splash squeal squint squirm stand stance stare status sting
+stiffen stomp stop strip stretch superbrief surrender swim swish swoon take tactical
+tackle tap taunt tease terminal throw tickle time touch tos track train
+transfer treat tremble turn twitch typo unfurl unlock unready use users visualize
+wave wear weather weave web whisper whimper whine whistle who wince wink
+withdraw world wrinkle yawn yell
+]]
+local function hpath(name)
+  local d = (dg.sharedDir and dg.sharedDir()) or ((os.getenv("USERPROFILE") or os.getenv("HOME") or ".") .. "/dg-control")
+  return d .. "/" .. name
+end
+local function hline() return (line or (getCurrentLine and getCurrentLine()) or "") end
+
+function H.halt(quiet)
+  if H.trig  then killTrigger(H.trig);  H.trig  = nil end
+  if H.timer then killTimer(H.timer);   H.timer = nil end
+  if H.out   then H.out:close();        H.out   = nil end
+  if H.mode and not quiet then C.say("helpcrawl: stopped" .. (H.mode == "dump" and (" at topic " .. tostring(H.i) .. " of " .. #H.topics) or "")) end
+  H.mode = nil
+end
+
+function H.index()
+  H.halt(true)
+  H.mode, H.buf = "index", {}
+  H.trig = tempRegexTrigger("^", function()
+    local l = hline()
+    H.buf[#H.buf + 1] = l
+    if H.timer then killTimer(H.timer) end
+    if l:match("^There are %d+ commands") then H.count = tonumber(l:match("%d+")); H.timer = tempTimer(0.2, H.indexDone)
+    else H.timer = tempTimer(3, H.indexDone) end   -- or three quiet seconds: the list is over
+  end)
+  C.say("helpcrawl: asking for  help all  ...")
+  C.send("help all")
+  H.timer = tempTimer(8, H.indexDone)
+end
+
+function H.indexDone()
+  H.timer = nil
+  local buf = H.buf or {}
+  H.halt(true)
+  if #buf == 0 then C.warn("helpcrawl: the game printed nothing for 'help'"); return end
+  local raw = io.open(hpath("help_index_raw.txt"), "w")
+  if raw then raw:write(table.concat(buf, "\n"), "\n"); raw:close() end
+  local seen, topics = {}, {}
+  local inList = false
+  for _, l in ipairs(buf) do
+    if l:find("Available Commands", 1, true) then inList = true
+    elseif l:match("^There are %d+ commands") then inList = false
+    elseif inList then
+      for word in l:gmatch("[%w_%-'%?]+") do
+        local tok = word:lower()
+        if #tok > 1 and not seen[tok] then seen[tok] = true; topics[#topics + 1] = tok end
+      end
+    end
+  end
+  local f = io.open(hpath("help_topics.txt"), "w")
+  if not f then C.warn("helpcrawl: could not write " .. hpath("help_topics.txt")); return end
+  f:write(table.concat(topics, "\n"), "\n"); f:close()
+  C.say("helpcrawl: " .. #topics .. " commands written to " .. hpath("help_topics.txt") .. (H.count and (" (the game says " .. H.count .. ")") or ""))
+  C.say("helpcrawl: type  helpcrawl start  to read every one of them")
+end
+
+function H.topicDone(gen)
+  if gen ~= H.gen or H.mode ~= "dump" then return end
+  if H.timer then killTimer(H.timer); H.timer = nil end
+  H.out:write("=== help " .. H.cur .. " ===\n", table.concat(H.lines, "\n"), "\n\n")
+  H.out:flush()
+  if H.i % 25 == 0 then C.say("helpcrawl: " .. H.i .. " of " .. #H.topics .. " done") end
+  H.i = H.i + 1
+  H.gen = H.gen + 1
+  local g = H.gen
+  H.timer = tempTimer(0.4, function() H.timer = nil; if H.gen == g then H.nextTopic() end end)
+end
+
+function H.nextTopic()
+  if H.mode ~= "dump" then return end
+  if H.i > #H.topics then
+    local n = #H.topics
+    H.halt(true)
+    C.say("helpcrawl: finished " .. n .. " topics -> " .. hpath("help_dump.txt"))
+    return
+  end
+  H.cur, H.lines = H.topics[H.i], {}
+  H.gen = (H.gen or 0) + 1
+  local g = H.gen
+  C.send("help " .. H.cur)
+  H.timer = tempTimer(6, function() H.timer = nil; H.topicDone(g) end)   -- no prompt seen: take what we have
+end
+
+function H.start(from)
+  H.halt(true)
+  local f = io.open(hpath("help_topics.txt"), "r")
+  H.topics = {}
+  if f then
+    for raw in f:lines() do
+      local l = trim(raw)
+      if l ~= "" then H.topics[#H.topics + 1] = l end
+    end
+    f:close()
+  else
+    for w in H.builtin:gmatch("%S+") do H.topics[#H.topics + 1] = w end
+    C.say("helpcrawl: no help_topics.txt, using the built-in list of " .. #H.topics .. " commands")
+  end
+  if #H.topics == 0 then C.warn("helpcrawl: help_topics.txt is empty"); return end
+  H.i = tonumber(from) or 1
+  H.out = io.open(hpath("help_dump.txt"), H.i > 1 and "a" or "w")
+  if not H.out then C.warn("helpcrawl: could not open " .. hpath("help_dump.txt")); return end
+  H.mode, H.gen = "dump", 0
+  H.trig = tempRegexTrigger("^", function()
+    if H.mode ~= "dump" then return end
+    local l = hline()
+    if l:match("^>%s*$") then
+      if #H.lines > 0 then
+        local g = H.gen
+        if H.timer then killTimer(H.timer) end
+        H.timer = tempTimer(0.3, function() H.timer = nil; H.topicDone(g) end)   -- the prompt: the answer is complete
+      end
+    elseif not l:match("^>%s*help") then
+      H.lines[#H.lines + 1] = l
+    end
+  end)
+  C.say("helpcrawl: " .. #H.topics .. " topics, starting at " .. H.i .. " (about " .. math.ceil((#H.topics - H.i + 1) * 1.2 / 60) .. " minutes). 'helpcrawl stop' to stop.")
+  H.nextTopic()
+end
+
+function C.cmdHelpCrawl(args)
+  args = trim(args or "")
+  local cmd, rest = args:match("^(%a+)%s*(.*)$")
+  cmd = cmd and cmd:lower()
+  if cmd == "index" then H.index()
+  elseif cmd == "start" then H.start(rest ~= "" and rest or nil)
+  elseif cmd == "stop" then H.halt()
+  elseif cmd == "status" then
+    if H.mode == "dump" then C.say("helpcrawl: topic " .. H.i .. " of " .. #H.topics .. " (" .. tostring(H.cur) .. ")")
+    elseif H.mode == "index" then C.say("helpcrawl: reading the help index")
+    else C.say("helpcrawl: idle") end
+  else
+    C.warn("helpcrawl index | start [N] | stop | status    (files: help_index_raw.txt, help_topics.txt, help_dump.txt in " .. hpath("") .. ")")
+  end
+end
 
 function C.cmdDisg(args)
   args = trim(args):lower()
