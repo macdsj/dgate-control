@@ -2171,7 +2171,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.57"
+C.version = "0.58"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -2584,7 +2584,7 @@ end
 function H.topicDone(gen)
   if gen ~= H.gen or H.mode ~= "dump" then return end
   if H.timer then killTimer(H.timer); H.timer = nil end
-  H.out:write("=== help " .. H.cur .. " ===\n", table.concat(H.lines, "\n"), "\n\n")
+  H.out:write("=== " .. (H.prefix or "") .. H.cur .. " ===\n", table.concat(H.lines, "\n"), "\n\n")
   H.out:flush()
   if H.i % 25 == 0 then C.say("helpcrawl: " .. H.i .. " of " .. #H.topics .. " done") end
   H.i = H.i + 1
@@ -2598,13 +2598,13 @@ function H.nextTopic()
   if H.i > #H.topics then
     local n = #H.topics
     H.halt(true)
-    C.say("helpcrawl: finished " .. n .. " topics -> " .. hpath("help_dump.txt"))
+    C.say("helpcrawl: finished " .. n .. " entries -> " .. hpath(H.outname or "help_dump.txt"))
     return
   end
   H.cur, H.lines = H.topics[H.i], {}
   H.gen = (H.gen or 0) + 1
   local g = H.gen
-  C.send("help " .. H.cur)
+  C.send((H.prefix or "") .. H.cur)
   H.timer = tempTimer(6, function() H.timer = nil; H.topicDone(g) end)   -- no prompt seen: take what we have
 end
 
@@ -2623,9 +2623,16 @@ function H.start(from)
     C.say("helpcrawl: no help_topics.txt, using the built-in list of " .. #H.topics .. " commands")
   end
   if #H.topics == 0 then C.warn("helpcrawl: help_topics.txt is empty"); return end
+  H.run(H.topics, from, "help ", "help_dump.txt")
+end
+
+-- send every entry of `topics` (each prefixed with `prefix`), appending the answers to the file `outname`
+function H.run(topics, from, prefix, outname)
+  H.halt(true)
+  H.topics, H.prefix, H.outname = topics, prefix, outname
   H.i = tonumber(from) or 1
-  H.out = io.open(hpath("help_dump.txt"), H.i > 1 and "a" or "w")
-  if not H.out then C.warn("helpcrawl: could not open " .. hpath("help_dump.txt")); return end
+  H.out = io.open(hpath(outname), H.i > 1 and "a" or "w")
+  if not H.out then C.warn("helpcrawl: could not open " .. hpath(outname)); return end
   H.mode, H.gen = "dump", 0
   H.trig = tempRegexTrigger("^", function()
     if H.mode ~= "dump" then return end
@@ -2644,19 +2651,67 @@ function H.start(from)
   H.nextTopic()
 end
 
+
+-- second pass: commands whose help mentions a "?" list (set, appearance, ...) get probed with
+-- "COMMAND ?" and "COMMAND OPTION ?" for each option in their Syntax line. Answers -> help_deep.txt
+local SKIP_OPTS = { text = true, args = true, arg = true, value = true, name = true, target = true,
+                    message = true, string = true, number = true, who = true, what = true, how = true }
+function H.deepList()
+  local f = io.open(hpath("help_dump.txt"), "r")
+  if not f then return nil end
+  local txt = f:read("*a"); f:close()
+  local list, seen = {}, {}
+  local function add(c) if not seen[c] then seen[c] = true; list[#list + 1] = c end end
+  local heads = {}
+  local pos = 1
+  while true do
+    local a1, b1, topic = txt:find("=== help ([^\n]-) ===\n", pos)
+    if not a1 then break end
+    heads[#heads + 1] = { topic = topic, from = b1 + 1, at = a1 }
+    pos = b1 + 1
+  end
+  for k, h in ipairs(heads) do
+    local topic = h.topic
+    local body = txt:sub(h.from, (heads[k + 1] and heads[k + 1].at or (#txt + 1)) - 1)
+    if topic ~= "" and (body:find("%s%?") or body:find("%?%s") or body:find("%?$") or body:find("|%?")) then
+      add(topic .. " ?")
+      for l in body:gmatch("[^\n]+") do
+        if l:lower():sub(1, #topic + 2) == topic:lower() .. " &lt;" then
+          local group = l:match("&lt;([^>]+)>")
+          for word in (group or ""):gmatch("[^|]+") do
+            local opt = word:lower()
+            if opt ~= "?" and opt:match("^[%a%-]+$") and not SKIP_OPTS[opt] then add(topic .. " " .. opt .. " ?") end
+          end
+          break
+        end
+      end
+    end
+  end
+  return list
+end
+
+function H.deep(from)
+  local list = H.deepList()
+  if not list then C.warn("helpcrawl: no help_dump.txt yet -- run  helpcrawl start  first"); return end
+  if #list == 0 then C.say("helpcrawl: nothing in help_dump.txt mentions a ? list"); return end
+  C.say("helpcrawl: " .. #list .. " ? probes, e.g. '" .. list[1] .. "' and '" .. list[math.min(2, #list)] .. "'")
+  H.run(list, from, "", "help_deep.txt")
+end
+
 function C.cmdHelpCrawl(args)
   args = trim(args or "")
   local cmd, rest = args:match("^(%a+)%s*(.*)$")
   cmd = cmd and cmd:lower()
   if cmd == "index" then H.index()
   elseif cmd == "start" then H.start(rest ~= "" and rest or nil)
+  elseif cmd == "deep" then H.deep(rest ~= "" and rest or nil)
   elseif cmd == "stop" then H.halt()
   elseif cmd == "status" then
     if H.mode == "dump" then C.say("helpcrawl: topic " .. H.i .. " of " .. #H.topics .. " (" .. tostring(H.cur) .. ")")
     elseif H.mode == "index" then C.say("helpcrawl: reading the help index")
     else C.say("helpcrawl: idle") end
   else
-    C.warn("helpcrawl index | start [N] | stop | status    (files: help_index_raw.txt, help_topics.txt, help_dump.txt in " .. hpath("") .. ")")
+    C.warn("helpcrawl index | start [N] | deep [N] | stop | status    (files: help_index_raw.txt, help_topics.txt, help_dump.txt in " .. hpath("") .. ")")
   end
 end
 
