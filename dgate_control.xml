@@ -1634,6 +1634,8 @@ local function stealth(kind)
     start = function() step(0) end,
     onStop = function() S.on = false; S.align = nil; S.standing = false; if standTimer then killTimer(standTimer); standTimer = nil end; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
     rules = {
+      -- fully rested ("You awaken feeling great. What a refreshing nap."): stop resting and stand
+      { "you awaken feeling great",             function() if S.resting then endRest("fully rested") end end },
       -- getting up after a rest
       { "you stand up",                         function() standUp() end },
       { "you are already standing",             function() standUp() end },
@@ -2062,7 +2064,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.49"
+C.version = "0.50"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
