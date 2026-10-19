@@ -185,6 +185,13 @@ dg.ctl.loopStart("healer", "")</script>
           <regex>^helpcrawl(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>dglogin</name>
+          <script>dg.ctl.cmdLogin(matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^dglogin(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>ptsneakb</name>
           <script>dg.ctl.loopStart("ptsneakb", "")</script>
           <command />
@@ -2177,7 +2184,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.60"
+C.version = "0.61"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -2942,6 +2949,62 @@ function C.setChar(name)
         "   archetype: " .. (C.class or "?"))
 end
 
+---------------------------------------------------------------------------
+-- login setup: commands sent after every real login ("Welcome to Dragon's Gate, NAME").
+--   dg.ctlData.login = { enabled = true, delay = 3, gap = 1.5,
+--                        common = { "cmd", ... },            -- every character
+--                        chars  = { lye = { "cmd", ... } } }  -- one entry per character, lower-case name
+-- (the defaults below are used unless dg_highlights.lua sets dg.ctlData.login itself)
+--   dglogin          run the list now        dglogin show   print it        dglogin on|off   switch it
+---------------------------------------------------------------------------
+dg.ctlData.login = dg.ctlData.login or {
+  enabled = true, delay = 3, gap = 1.5,
+  common = {
+    "set update alert-healed off",   -- no "** You are fully healed" bell
+    "set update alert-rested off",   -- no "** You are fully rested" bell
+  },
+  chars = {},
+}
+
+function C.loginList()
+  local L = dg.ctlData.login or {}
+  local list = {}
+  for _, c in ipairs(L.common or {}) do list[#list + 1] = c end
+  local per = L.chars and C.char and L.chars[C.char:lower()]
+  for _, c in ipairs(per or {}) do list[#list + 1] = c end
+  return list
+end
+
+function C.loginRun(manual)
+  local L = dg.ctlData.login or {}
+  if L.enabled == false and not manual then return end
+  if C.loginTimer then killTimer(C.loginTimer); C.loginTimer = nil end
+  local list = C.loginList()
+  if #list == 0 then if manual then C.say("login setup: nothing to send") end; return end
+  local i, gap = 0, L.gap or 1.5
+  local function nxt()
+    i = i + 1
+    if i > #list then C.loginTimer = nil; C.say("login setup done (" .. #list .. " commands)"); return end
+    C.send(list[i])
+    C.loginTimer = tempTimer(gap, nxt)
+  end
+  C.say("login setup for " .. tostring(C.me or C.char or "?") .. ": " .. #list .. " commands")
+  C.loginTimer = tempTimer(manual and 0.1 or (L.delay or 3), nxt)
+end
+
+function C.cmdLogin(args)
+  args = trim(args or ""):lower()
+  local L = dg.ctlData.login
+  if args == "show" then
+    local list = C.loginList()
+    C.say("login setup (" .. ((L.enabled == false) and "OFF" or "on") .. ") for " .. tostring(C.me or "?") .. ":")
+    for _, c in ipairs(list) do decho("   " .. c .. "\n") end
+    if #list == 0 then decho("   (nothing)\n") end
+  elseif args == "off" then L.enabled = false; C.say("login setup off until the profile reloads")
+  elseif args == "on" then L.enabled = true; C.say("login setup on")
+  else C.loginRun(true) end
+end
+
 function C.onStatus()
   local st = gmcpStatus()
   if not st then return end
@@ -3112,7 +3175,7 @@ function C.init()
   if not D then C.warn("data scripts not loaded yet"); return end
 
   C.kill("sys")
-  C.trig("sys", "Welcome to Dragon's Gate, (\\w+)", function() C.setChar(matches[2]); C.disgAsked = C.char end)
+  C.trig("sys", "Welcome to Dragon's Gate, (\\w+)", function() C.setChar(matches[2]); C.disgAsked = C.char; C.loginRun() end)
   -- the HUD's login info check prints "You are disguised." -&gt; ask for the details too
   C.trig("sys", "You are disguised\\.", function()
     local now = os.time()
