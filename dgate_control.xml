@@ -160,6 +160,15 @@ dg.ctl.send("get boot")</script>
           <regex>^ptsneak$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>ptsneakf</name>
+          <script>local who = (matches[2] or ""):gsub("^%s+", ""):gsub("%s+$", "")
+if who ~= "" then dg.ctl.healerName = who end
+dg.ctl.loopStart("ptsneakf", "")</script>
+          <command />
+          <packageName />
+          <regex>^ptsneakf(?:\s+(\S+))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>ptsneakb</name>
           <script>dg.ctl.loopStart("ptsneakb", "")</script>
           <command />
@@ -1272,9 +1281,11 @@ local beatRules = {
 -- so every command waits for the game's answer to the last one. Any "[N sec. delay]" line pushes the
 -- "no reply" watchdog out by that long, so a long cast never looks like a stall.
 local function stealth(kind)
-  local BASIC = (kind == "basic")                 -- ptsneakb: sneak training with no healer or training trips (rests when tired)
+  local FOLLOW = (kind == "follow")               -- ptsneakf: when tired, line up with the healer's rank, then rest
+  local BASIC = (kind == "basic") or FOLLOW       -- ptsneakb/f: sneak training with no healer or training trips (rests when tired)
   local SNEAK = (kind == "sneak") or BASIC
-  local NAME  = BASIC and "ptsneakb" or (SNEAK and "ptsneak" or "pthide")
+  local NAME  = FOLLOW and "ptsneakf" or (BASIC and "ptsneakb" or (SNEAK and "ptsneak" or "pthide"))
+  local HEALER = tostring(dg.ctl.healerName or "Fropwaffle"):lower()
   local SLINK_CHARS = { kressa = true, katie = true, kasper = true }   -- who keeps shadow slinking up (ptsneak only)
   local CFG = {
     hide = "hide", adv = "adv 1", ret = "ret",
@@ -1317,6 +1328,8 @@ local function stealth(kind)
     delay    = 0.3,   -- pause after a game line before the next command
     retDelay = 3.3,   -- ret carries a 3 sec delay; wait it out
     stall    = 10,    -- seconds of silence (after any game delay) before it re-evaluates and resends
+    alignMax  = 12,   -- ptsneakf: most advance/retreat moves while lining up with the healer
+    alignWait = 12,   -- ptsneakf: seconds without a usable "tac" answer before it just rests where it is
     basicWait = 8,    -- ptsneakb: seconds to wait and try again when the game says you are too tired
   }
   local S = { on = true, hidden = false, mode = "adv", retLeft = 0, clear = false,
@@ -1328,7 +1341,9 @@ local function stealth(kind)
 
   local function now() return (getEpoch and getEpoch()) or os.time() end
 
+  local alignTimer
   local function timersOff()
+    if alignTimer then killTimer(alignTimer); alignTimer = nil end
     if timer    then killTimer(timer);    timer    = nil end
     if watchdog then killTimer(watchdog); watchdog = nil end
   end
@@ -1369,7 +1384,7 @@ local function stealth(kind)
 
   step = function(wait)
     if not S.on then return end
-    if S.resting or S.trip then return end   -- worn out (resting / off to the healer); those resume us
+    if S.resting or S.trip or S.align then return end   -- worn out (resting / off to the healer / lining up); those resume us
     if S.casting then return end   -- a cast is in flight; its "[N sec. delay]" line resumes us
     if S.trainPending then S.trainPending = false; startTrip("train"); return end   -- a skill is ready to train
     if S.useSlink and not S.slink then
@@ -1522,9 +1537,46 @@ local function stealth(kind)
     restTimer = tempTimer(CFG.restMax, function() restTimer = nil; endRest("timed out") end)
   end
 
+  ---------------------------------------------------------------- line up with the healer (ptsneakf)
+  -- "tac" lists who stands where:  "Standing in front of you at 5 UDs, is:" / the names /
+  -- "Standing in this rank is:" / the names.  Advance or retreat until the healer is in our rank.
+  local function alignDone(why)
+    if alignTimer then killTimer(alignTimer); alignTimer = nil end
+    S.align = nil
+    if why then dg.ctl.say(NAME .. ": " .. why) end
+    startRest()
+  end
+  local function alignAsk()
+    S.align.sec = nil
+    dg.ctl.send("tac")
+    if alignTimer then killTimer(alignTimer) end
+    alignTimer = tempTimer(CFG.alignWait + math.max(0, S.busyUntil - now()), function()
+      alignTimer = nil
+      if S.on and S.align then alignDone("no word on where " .. HEALER .. " stands -- resting here") end
+    end)
+  end
+  local function startAlign()
+    if S.align or S.resting or not S.on then return end
+    S.align = { moves = 0 }
+    S.casting, S.castSeen, S.hidden = false, false, false
+    timersOff()
+    dg.ctl.say(NAME .. ": out of fatigue -- moving to " .. HEALER .. "'s rank before resting")
+    dg.ctl.send("q c")
+    alignAsk()
+  end
+  local function alignSeen(sec)
+    if not (S.on and S.align) then return end
+    if sec == "same" then alignDone(HEALER .. " is in your rank -- resting"); return end
+    S.align.moves = S.align.moves + 1
+    if S.align.moves > CFG.alignMax then alignDone("still not level with " .. HEALER .. " after " .. CFG.alignMax .. " moves -- resting here"); return end
+    dg.ctl.send(sec == "front" and CFG.adv or CFG.ret)
+    alignAsk()
+  end
+
   -- Out of fatigue: the healer trip when we are in the practice room and the mapper can walk, else rest.
   local function exhausted()
-    if S.resting or S.trip or not S.on then return end
+    if S.resting or S.trip or S.align or not S.on then return end
+    if FOLLOW then startAlign(); return end
     if BASIC then startRest(); return end   -- ptsneakb: no heal trip, just rest and let the pocket healer work
     local TR = CFG.trip
     local why
@@ -1538,7 +1590,7 @@ local function stealth(kind)
 
   -- A retreat answer counts even if we were just revealed (the move still happens).
   local function retDone()
-    if S.mode ~= "ret" then return end
+    if S.align or S.mode ~= "ret" then return end
     S.retLeft = S.retLeft - 1
     if S.retLeft &lt;= 0 then S.mode = "adv" end
     step(CFG.retDelay)
@@ -1548,7 +1600,7 @@ local function stealth(kind)
     target = false,
     qc = true,
     start = function() step(0) end,
-    onStop = function() S.on = false; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
+    onStop = function() S.on = false; S.align = nil; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
     rules = {
       -- hiding
       { "you slip into the shadows",            function() S.hidden = true;  step() end },
@@ -1558,7 +1610,8 @@ local function stealth(kind)
       -- worn out: rest (the game says one of these when fatigue is gone)
       { "warning: current fatigue below",       exhausted },
       { "don't have enough energy to do that",  function()
-          if S.trip then
+          if S.align then alignDone("too tired to move -- resting here")
+          elseif S.trip then
             if S.trip.onNoEnergy then S.trip.onNoEnergy() end   -- mid-walk: wait and walk again
           else
             exhausted()
@@ -1614,15 +1667,31 @@ local function stealth(kind)
   if SNEAK then
     local walk = {
       -- walking to the front
-      { "you advance another",                  function() if S.mode == "adv" then step() end end },
+      { "you advance another",                  function() if S.mode == "adv" and not S.align then step() end end },
       { "you cannot advance further",           function()
-          if S.mode == "adv" then S.mode, S.retLeft = "ret", CFG.rets; step() end
+          if S.mode == "adv" and not S.align then S.mode, S.retLeft = "ret", CFG.rets; step() end
         end },
       -- going to the back
       { "you retreat",                          retDone },
       { "you may not retreat any further",      retDone },
     }
     for _, r in ipairs(walk) do def.rules[#def.rules + 1] = r end
+  end
+
+  if FOLLOW then
+    local function seen(sec) return function() if S.align then S.align.sec = sec end end end
+    local more = {
+      { "standing in front of you",  seen("front") },
+      { "standing behind you",       seen("behind") },
+      { "standing in this rank",     seen("same") },
+      { HEALER, function()
+          if not (S.align and S.align.sec) then return end
+          local l = ((line or (getCurrentLine and getCurrentLine()) or ""):lower()):gsub("^%s+", "")
+          if l:sub(1, #HEALER) ~= HEALER or l:find("standing", 1, true) then return end
+          alignSeen(S.align.sec)
+        end },
+    }
+    for _, r in ipairs(more) do def.rules[#def.rules + 1] = r end
   end
 
   if S.useSlink then
@@ -1806,6 +1875,7 @@ dg.ctlLoops = {
   --   pthide  : hide, and when hidden, reveal; then hide again (trains hide).
   ptsneak = { target = false, make = function() return stealth("sneak") end },
   pthide  = { target = false, make = function() return stealth("hide")  end },
+  ptsneakf = { target = false, make = function() return stealth("follow") end },   -- ptsneakb, but lines up with the healer before resting
   ptsneakb = { target = false, make = function() return stealth("basic") end },   -- ptsneak without any trips (pocket healer)
 
   disme = { target = false, make = function() return disguiseLoop(false) end },   -- disme name Ferrets Down
@@ -1949,7 +2019,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.46"
+C.version = "0.47"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
