@@ -2171,7 +2171,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.56"
+C.version = "0.57"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -2570,7 +2570,7 @@ function H.indexDone()
     elseif inList then
       for word in l:gmatch("[%w_%-'%?]+") do
         local tok = word:lower()
-        if #tok > 1 and not seen[tok] then seen[tok] = true; topics[#topics + 1] = tok end
+        if (#tok > 1 or tok == "?") and not seen[tok] then seen[tok] = true; topics[#topics + 1] = tok end
       end
     end
   end
