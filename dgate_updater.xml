@@ -43,7 +43,7 @@ U.owner    = "macdsj"
 U.codeRepo = "dgate-control"      -- public: the control package
 U.hlRepo   = "dgate-highlights"   -- private (optional): dg_highlights.lua, needs dg_token.txt
 U.branch   = "main"
-U.version  = "1.1"                -- this updater's own version (UPDATER_VERSION in the repo)
+U.version  = "1.2"                -- this updater's own version (UPDATER_VERSION in the repo)
 
 local function say(m)  decho("\n&lt;255,255,85&gt;[dgupdate]&lt;reset&gt; " .. m .. "\n") end
 local function warn(m) decho("\n&lt;255,85,85&gt;[dgupdate]&lt;reset&gt; " .. m .. "\n") end
@@ -52,12 +52,17 @@ local function trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "
 -- the per-computer folder (same one the highlights stub reads from)
 function U.dir()
   local home = (os.getenv("USERPROFILE") or os.getenv("HOME") or "."):gsub("\\", "/")
-  local candidates = { "D:/Documents/dglogs/Claude/dg-shared", home .. "/dg-control" }
+  -- same order as the highlights stub: the user folder on the C drive first, then the old D folder
+  local candidates = { home .. "/dg-control", "D:/Documents/dglogs/Claude/dg-shared" }
+  for _, d in ipairs(candidates) do
+    local f = io.open(d .. "/dg_highlights.lua", "r")
+    if f then f:close(); return d end
+  end
   for _, d in ipairs(candidates) do
     if lfs.attributes(d, "mode") == "directory" then return d end
   end
-  lfs.mkdir(candidates[2])
-  return candidates[2]
+  lfs.mkdir(candidates[1])
+  return candidates[1]
 end
 
 local function rawUrl(repo, file)

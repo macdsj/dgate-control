@@ -1171,7 +1171,8 @@ if (getNetworkLatency and getNetworkLatency() or 0) &gt; 0 then tempTimer(1, dg.
           <script>-- DG Control :: highlights (stub)
 -- Names, colours and highlight rules live in ONE shared file, dg_highlights.lua, not in this
 -- script. Edit that file, then type  dghl  in game to reload it. Don't edit this stub.
--- (Desktop: D:/Documents/dglogs/Claude/dg-shared/   Laptop: &lt;your user folder&gt;/dg-control/)
+-- Looked for, in order:  &lt;your user folder&gt;/dg-control/   (on the C drive, e.g. C:/Users/you/dg-control)
+-- then the old desktop folder  D:/Documents/dglogs/Claude/dg-shared/   (kept so existing setups still work)
 
 dg = dg or {}
 dg.ctlData = dg.ctlData or {}
@@ -1185,13 +1186,13 @@ end
 function dg.sharedDir()
   local home = os.getenv("USERPROFILE") or os.getenv("HOME") or "."
   local candidates = {
-    "D:/Documents/dglogs/Claude/dg-shared",
     home:gsub("\\", "/") .. "/dg-control",
+    "D:/Documents/dglogs/Claude/dg-shared",
   }
   for _, d in ipairs(candidates) do
     if fileExists(d .. "/dg_highlights.lua") then return d end
   end
-  return candidates[#candidates]
+  return candidates[1]
 end
 
 dg.sharedHighlights = dg.sharedDir() .. "/dg_highlights.lua"
@@ -2155,7 +2156,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.51"
+C.version = "0.52"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
