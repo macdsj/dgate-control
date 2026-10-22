@@ -1266,6 +1266,8 @@ D.chars = {
   kressa    = "kressa",
   tarvi     = "tarvi",
   nyvar     = "nyvar",
+  katie     = "katie",    -- spk shares Kressa's list (see loops script); aliases that name Kressa stay Kressa-only
+  kasper    = "kasper",
 }
 
 -- Optional: pick an archetype by class (from the game's GMCP status) for a character not
@@ -2166,6 +2168,10 @@ dg.ctlLoops = {
   } },
 }
 
+-- Katie and Kasper use the same spk list as Kressa (shared table: editing Kressa's edits theirs).
+dg.ctlLoops.spk.by_class.katie  = dg.ctlLoops.spk.by_class.kressa
+dg.ctlLoops.spk.by_class.kasper = dg.ctlLoops.spk.by_class.kressa
+
 if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 </script>
           <eventHandlerList />
@@ -2184,7 +2190,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.61"
+C.version = "0.62"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
