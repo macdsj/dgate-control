@@ -1845,7 +1845,7 @@ local function disguiseLoop(train)
   -- No timers drive this: the game's own 60-second disguise delay paces it. One command goes out,
   -- then we wait for "Disguise in place" (the game finished), then ask "info disguise", then decide.
   -- The only timer is a failsafe that asks "info disguise" again if the game goes quiet for a long time.
-  local armWatch
+  local armWatch, sendNext
   local function askInfo()
     S.waiting = "info"
     dg.ctl.send("info disguise")
@@ -1857,7 +1857,10 @@ local function disguiseLoop(train)
     local wait = (S.waiting == "disg" and CFG.disguiseWait or CFG.stall) + math.max(0, S.busyUntil - now())
     watchdog = tempTimer(wait, function()
       watchdog = nil
-      if S.on then dg.ctl.say(NAME .. ": the game has gone quiet, checking the disguise again"); askInfo() end
+      if S.on then
+        dg.ctl.say(NAME .. ": the game has gone quiet, " .. (train and "trying again" or "checking the disguise again"))
+        if train then sendNext() else askInfo() end
+      end
     end)
   end
 
@@ -1868,7 +1871,7 @@ local function disguiseLoop(train)
       if G[f] and (train or not S.ok[f]) then return f, G[f] end
     end
   end
-  local function sendNext()
+  sendNext = function()
     local f, v = nextField()
     if not f then dg.ctl.loopStop("nothing to change"); return end
     S.tries = S.tries + 1
@@ -1908,7 +1911,11 @@ local function disguiseLoop(train)
     end,
     onStop = function() S.on = false; off() end,
     rules = {
-      { "disguise in place",   function() if S.waiting == "disg" then askInfo() end end },
+      { "disguise in place",   function()
+          if S.waiting ~= "disg" then return end
+          -- training does not need to look: just go again (like the old ";;sk" trigger did)
+          if train then dg.ctl.say(NAME .. ": attempt " .. S.tries .. " done"); sendNext() else askInfo() end
+        end },
       { "you are disguised as",  answered },
       { "you are not disguised", answered },
       { "sec. delay", function()
@@ -2190,7 +2197,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.62"
+C.version = "0.63"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
