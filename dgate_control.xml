@@ -1918,6 +1918,7 @@ local function disguiseLoop(train)
         end },
       { "you are disguised as",  answered },
       { "you are not disguised", answered },
+      { "what you see is what you get", answered },   -- the game's answer when you are NOT disguised: "What disguise?  What you see is what you get."
       { "sec. delay", function()
           local n = tonumber((line or (getCurrentLine and getCurrentLine()) or ""):match("(%d+)%s*sec"))
           if n then S.busyUntil = now() + n; if watchdog then armWatch() end end
@@ -2197,7 +2198,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.63"
+C.version = "0.64"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
