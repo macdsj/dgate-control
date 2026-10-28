@@ -2198,7 +2198,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.64"
+C.version = "0.65"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -3082,11 +3082,55 @@ function C.loopDef(name)
   return L
 end
 
+---------------------------------------------------------------------------
+-- Folders / triggers that follow the running loop (your own Mudlet triggers):
+--   * any "pt..." loop (ptsneak, pthide, ptsneakb, ptsneakf, ptdis, ...) turns the gag folder ON;
+--     every loop stop (F4 / halt / done) turns it OFF again.
+--   * the stealth loops (ptsneak, pthide, ptsneakb, ptsneakf) turn the old "hide" trigger OFF while they
+--     run (they re-hide by themselves), and put it back as it was when the loop stops.
+-- Names come from dg.ctlData.autoSwitch (all optional):
+--   gagFolder = "Training Gags"   trainPrefix = "pt"   hideTrigger = "hide"
+--   hideLoops = { ptsneak = true, pthide = true, ptsneakb = true, ptsneakf = true }
+-- Set gagFolder = false (or hideTrigger = false) to switch that part off.
+---------------------------------------------------------------------------
+local function swCfg()
+  local A = (dg.ctlData and dg.ctlData.autoSwitch) or {}
+  local function pick(v, d) if v == nil then return d end return v end
+  return {
+    gagFolder   = pick(A.gagFolder, "Training Gags"),
+    trainPrefix = pick(A.trainPrefix, "pt"),
+    hideTrigger = pick(A.hideTrigger, "hide"),
+    hideLoops   = A.hideLoops or { ptsneak = true, pthide = true, ptsneakb = true, ptsneakf = true },
+  }
+end
+local function trigExists(name)
+  return name and exists and (tonumber(exists(name, "trigger")) or 0) > 0
+end
+
+function C.loopSwitches(name, on)
+  local W = swCfg()
+  C.sw = C.sw or {}
+  if on then
+    if W.gagFolder and W.trainPrefix and name:sub(1, #W.trainPrefix) == W.trainPrefix and trigExists(W.gagFolder) then
+      enableTrigger(W.gagFolder)
+    end
+    if W.hideTrigger and W.hideLoops[name] and trigExists(W.hideTrigger) then
+      C.sw.hideWas = (tonumber(isActive(W.hideTrigger, "trigger")) or 0) > 0
+      disableTrigger(W.hideTrigger)
+    end
+  else
+    if W.gagFolder and trigExists(W.gagFolder) then disableTrigger(W.gagFolder) end
+    if W.hideTrigger and C.sw.hideWas and trigExists(W.hideTrigger) then enableTrigger(W.hideTrigger) end
+    C.sw.hideWas = nil
+  end
+end
+
 function C.loopStop(reason, cmd)
   local cur = C.loopCur
   C.kill("loop")
   C.loopCur = nil
   if cur and cur.onStop then pcall(cur.onStop) end
+  if cur then pcall(C.loopSwitches, cur.name, false) end
   if cur then
     if cmd and cmd ~= "" then C.sendAll(C.split(cmd)) end
     C.say("loop off: " .. cur.name .. (reason and (" (" .. reason .. ")") or ""))
@@ -3113,6 +3157,7 @@ function C.loopStart(name, args)
 
   C.loopStop()
   C.loopCur = { name = name, target = t, onStop = L.onStop }
+  pcall(C.loopSwitches, name, true)
 
   for _, r in ipairs(L.rules or {}) do
     local rx = "(?i)" .. C.patRx(r[1], t)
@@ -3187,6 +3232,7 @@ end
 function C.init()
   local D = dg.ctlData
   if not D then C.warn("data scripts not loaded yet"); return end
+  if not C.loopCur then pcall(C.loopSwitches, "", false) end   -- no loop running: gag folder off
 
   C.kill("sys")
   C.trig("sys", "Welcome to Dragon's Gate, (\\w+)", function() C.setChar(matches[2]); C.disgAsked = C.char; C.loginRun() end)
