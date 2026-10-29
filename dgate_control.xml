@@ -169,9 +169,17 @@ dg.ctl.loopStart("ptsneakf", "")</script>
           <regex>^ptsneakf(?:\s+(\S+))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>unwield</name>
+          <script>local w = dg.ctlWeaponCmd and dg.ctlWeaponCmd()
+if w then dg.ctl.send(w) else dg.ctl.warn("unwield: no weapon set for this character (dg.ctlData.weapon in the loops script)") end</script>
+          <command />
+          <packageName />
+          <regex>^unwield$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>healer</name>
           <script>local who = (matches[2] or ""):gsub("^%s+", ""):gsub("%s+$", "")
-if who ~= "" then dg.ctl.restName = who end
+dg.ctl.restName = (who ~= "") and who or nil   -- plain "healer" answers all of your characters
 dg.ctl.loopStart("healer", "")</script>
           <command />
           <packageName />
@@ -1277,6 +1285,12 @@ D.classKits = {
   -- cleric = "raptorian",
 }
 
+-- The weapon to put away before casting (spellcasting needs empty hands, or just a torch).
+-- weapon = { default = "dirk", kressa = "dirk", raptorian = "sword" }   (lower-case character names)
+-- Set default = false to never auto-remove. Used by the sneak loops (before the first cast), healer,
+-- and the  unwield  alias.
+D.weapon = D.weapon or { default = "dirk" }
+
 -- lines that end any targeted loop, for every character
 dg.ctlStops = { "but the*is dead", "I don't see what you are referring to" }
 
@@ -1307,11 +1321,54 @@ local beatRules = {
 -- so every command waits for the game's answer to the last one. Any "[N sec. delay]" line pushes the
 -- "no reply" watchdog out by that long, so a long cast never looks like a stall.
 local function listHas(l, name)   -- "Fropwaffle, Jennifer" -> is "jennifer" one of the names on this line?
-  for tok in tostring(l):lower():gmatch("[^,]+") do
-    if (tok:gsub("^%s+", ""):gsub("[%s%.]+$", "")) == name then return true end
+  for raw in tostring(l):lower():gmatch("[^,]+") do   -- (a disguise like "Ferrets Down" counts as "ferrets")
+    local tok = (raw:gsub("^%s+", ""):gsub("[%s%.]+$", ""))
+    if tok == name or tok:match("^([^%s]+)") == name then return true end
   end
   return false
 end
+
+-- the command that puts your weapon away ("rem dirk"), or nil if auto-removal is off for this character
+local function weaponCmd()
+  local W = dg.ctlData and dg.ctlData.weapon or {}
+  local who = tostring(dg.ctl.char or ""):lower()
+  local w = W[who]
+  if w == nil then w = W.default end
+  if w == false or w == nil or tostring(w) == "" then return nil end
+  return "rem " .. tostring(w)
+end
+dg.ctlWeaponCmd = weaponCmd
+
+-- Every name that counts as "one of mine" (lower-case first words): your alts ("my alts" list in the
+-- highlights file), the characters listed for disguises and the disguises they wear, standing disguises,
+-- disguise presets, dg.ctlData.chars, plus  dg.ctl.healFor = { "Name", ... }  for anything else.
+-- The character running the script is left out.
+local function myNames()
+  local out, seen = {}, {}
+  local D = dg.ctlData or {}
+  local self_ = {}
+  for _, n in ipairs({ dg.ctl.char, dg.ctl.me, dg.ctl.realName and dg.ctl.realName() }) do
+    if n then self_[tostring(n):lower():match("^([^%s]+)") or ""] = true end
+  end
+  local function add(n)
+    n = tostring(n or ""):lower():match("^%s*([^%s]+)")
+    if n and n ~= "" and n:match("^%a") and not seen[n] and not self_[n] then seen[n] = true; out[#out + 1] = n end
+  end
+  for _, grp in ipairs(D.names or {}) do
+    if tostring(grp.label or ""):lower():find("my alts", 1, true) or grp.mine then
+      for _, n in ipairs(grp.names or {}) do add(n) end
+    end
+  end
+  local d = D.disguise or {}
+  for ch, dis in pairs(d.chars or {}) do add(ch); add(dis) end
+  for _, n in ipairs(d.common or {}) do add(n) end
+  for _, P in pairs(d.presets or {}) do if type(P) == "table" then add(P.name) end end
+  for ch in pairs(D.chars or {}) do add(ch) end
+  for _, n in ipairs(dg.ctl.healFor or {}) do add(n) end
+  add(dg.ctl.restName or "Jennifer")
+  return out
+end
+dg.ctlMyNames = myNames
 
 local function stealth(kind)
   local FOLLOW = (kind == "follow")               -- ptsneakf: when tired, line up with the healer's rank, then rest
@@ -1424,6 +1481,11 @@ local function stealth(kind)
     if S.trainPending then S.trainPending = false; startTrip("train"); return end   -- a skill is ready to train
     if S.useSlink and not S.slink then
       if S.casts &lt; CFG.maxCasts then
+        if not S.unwielded then   -- spellcasting needs empty hands
+          S.unwielded = true
+          local w = weaponCmd()
+          if w then dg.ctl.say(NAME .. ": putting the weapon away first (" .. w .. ")"); dg.ctl.send(w) end
+        end
         S.casting, S.castSeen, S.casts = true, false, S.casts + 1
         dg.ctl.say(NAME .. ": casting shadow slinking (try " .. S.casts .. ")")
         queue(CFG.cast, wait)
@@ -1631,7 +1693,7 @@ local function stealth(kind)
     if not (S.on and S.align) then return end
     if sec == "same" then alignDone(HEALER .. " is in your rank -- resting"); return end
     S.align.moves = S.align.moves + 1
-    if S.align.moves > CFG.alignMax then alignDone("still not level with " .. HEALER .. " after " .. CFG.alignMax .. " moves -- resting here"); return end
+    if S.align.moves &gt; CFG.alignMax then alignDone("still not level with " .. HEALER .. " after " .. CFG.alignMax .. " moves -- resting here"); return end
     S.align.sec, S.align.waitMove = nil, true
     -- ADVANCE/RETREAT take a target ("advance fropwaffle" goes to her rank): first try that, then single steps
     local cmd = (sec == "front") and CFG.adv or CFG.ret
@@ -1931,29 +1993,38 @@ end
 -- "NAME settles in to rest.", finds NAME's rank with "tac", advances or retreats until you stand in the
 -- same rank, then casts vigor on NAME CFG.casts times. It then waits for the next rest.
 local function healerLoop()
-  local WHO  = tostring(dg.ctl.restName or "Jennifer")
-  local LWHO = WHO:lower()
+  -- With a name (healer Jennifer) it answers only that character; plain "healer" answers every one of
+  -- your characters (see myNames above) and any disguise of theirs.
+  local ONLY = dg.ctl.restName and tostring(dg.ctl.restName):lower():match("^([^%s]+)")
+  local NAMES = ONLY and { ONLY } or myNames()
   local CFG  = {
-    cast      = "invoke vigor " .. LWHO,   -- what to cast (override: dg.ctl.healCast = "invo 2 jen")
-    casts     = tonumber(dg.ctl.healCasts) or 3,   -- vigors per rest (override: dg.ctl.healCasts = 2)
+    casts     = tonumber(dg.ctl.healCasts) or 4,   -- vigors per rest (override: dg.ctl.healCasts = 3)
     adv = "adv 1", ret = "ret",
     alignMax  = 12,   -- most moves while lining up
     alignWait = 12,   -- seconds with no usable answer before it gives up on this rest
   }
-  if dg.ctl.healCast and dg.ctl.healCast ~= "" then CFG.cast = dg.ctl.healCast end
-  local S = { on = true, align = nil }
+  -- what to cast: "invoke vigor NAME"; override with dg.ctl.healCast = "invo 2 {who}" ({who} = whoever rested)
+  local function castFor(who)
+    local c = dg.ctl.healCast
+    if c and c ~= "" then return (tostring(c):gsub("{who}", who)) end
+    return "invoke vigor " .. who
+  end
+  local S = { on = true, align = nil, pending = {} }
   local failsafe
   local function now() return (getEpoch and getEpoch()) or os.time() end
   local function killFail() if failsafe then killTimer(failsafe); failsafe = nil end end
+  local function cap(n) return (tostring(n):gsub("^%l", string.upper)) end
+  local begin
   local function done(why)
     killFail(); S.align = nil
     if why then dg.ctl.say("healer: " .. why) end
+    if S.on and #S.pending &gt; 0 then begin(table.remove(S.pending, 1)) end   -- someone else rested meanwhile
   end
   local function arm()
     killFail()
     failsafe = tempTimer(CFG.alignWait, function()
       failsafe = nil
-      if S.on and S.align then done("no word on where " .. WHO .. " stands -- giving up on this rest") end
+      if S.on and S.align then done("no word on where " .. cap(S.align.who) .. " stands -- giving up on this rest") end
     end)
   end
   local function ask()
@@ -1961,10 +2032,17 @@ local function healerLoop()
     dg.ctl.send("tac")
     arm()
   end
-  local function begin()
+  begin = function(who)
     if not S.on then return end
-    S.align = { moves = 0 }
-    dg.ctl.say("healer: " .. WHO .. " is resting -- finding her rank")
+    if S.align then
+      if S.align.who ~= who then
+        for _, w in ipairs(S.pending) do if w == who then return end end
+        S.pending[#S.pending + 1] = who
+      end
+      return
+    end
+    S.align = { moves = 0, who = who }
+    dg.ctl.say("healer: " .. cap(who) .. " is resting -- finding the rank")
     ask()
   end
   local function seen(sec) return function() if S.align then S.align.sec = sec end end end
@@ -1973,41 +2051,55 @@ local function healerLoop()
   local function nameLine()
     if not (S.on and S.align and S.align.sec and not S.align.waitMove) then return end
     local l = line or (getCurrentLine and getCurrentLine()) or ""
-    if not listHas(l, LWHO) then return end
+    local who = S.align.who
+    if not listHas(l, who) then return end
     local sec = S.align.sec
     if sec == "same" then
-      done(WHO .. " is in your rank -- casting")
-      for _ = 1, CFG.casts do dg.ctl.send(CFG.cast) end
+      done(cap(who) .. " is in your rank -- casting")
+      for _ = 1, CFG.casts do dg.ctl.send(castFor(who)) end
       return
     end
     S.align.moves = S.align.moves + 1
-    if S.align.moves > CFG.alignMax then done("still not level with " .. WHO .. " after " .. CFG.alignMax .. " moves -- giving up"); return end
+    if S.align.moves &gt; CFG.alignMax then done("still not level with " .. cap(who) .. " after " .. CFG.alignMax .. " moves -- giving up"); return end
     S.align.sec, S.align.waitMove = nil, true
     -- the game's ADVANCE/RETREAT take a target ("adv jennifer" goes to her rank); first try that, then single steps
     local cmd = (sec == "front") and CFG.adv or CFG.ret
-    if S.align.moves == 1 then cmd = ((sec == "front") and "advance " or "retreat ") .. LWHO end
+    if S.align.moves == 1 then cmd = ((sec == "front") and "advance " or "retreat ") .. who end
     dg.ctl.send(cmd)
     arm()
   end
+  local function tiredCast()
+    if S.align then
+      local who = S.align.who
+      done("too tired to move -- casting from here")
+      for _ = 1, CFG.casts do dg.ctl.send(castFor(who)) end
+    end
+  end
+
+  local rules = {}
+  for _, n in ipairs(NAMES) do
+    rules[#rules + 1] = { n .. " settles in to rest", function() begin(n) end }
+  end
+  rules[#rules + 1] = { "standing in front of you",    seen("front") }
+  rules[#rules + 1] = { "standing behind you",         seen("behind") }
+  rules[#rules + 1] = { "standing in this rank",       seen("same") }
+  rules[#rules + 1] = { "*",                           nameLine }      -- cheap: does nothing unless lining up
+  rules[#rules + 1] = { "you advance another",         moved }
+  rules[#rules + 1] = { "you cannot advance further",  moved }
+  rules[#rules + 1] = { "you retreat",                 moved }
+  rules[#rules + 1] = { "you may not retreat any further", moved }
+  rules[#rules + 1] = { "don't have enough energy to do that", tiredCast }
 
   return {
     target = false,
-    start = function() dg.ctl.say("healer: waiting for " .. WHO .. " to rest (casting: " .. CFG.cast .. " x" .. CFG.casts .. ")") end,
-    onStop = function() S.on = false; S.align = nil; killFail() end,
-    rules = {
-      { LWHO .. " settles in to rest", begin },
-      { "standing in front of you",    seen("front") },
-      { "standing behind you",         seen("behind") },
-      { "standing in this rank",       seen("same") },
-      { LWHO,                          nameLine },
-      { "you advance another",         moved },
-      { "you cannot advance further",  moved },
-      { "you retreat",                 moved },
-      { "you may not retreat any further", moved },
-      { "don't have enough energy to do that", function()
-          if S.align then done("too tired to move -- casting from here"); for _ = 1, CFG.casts do dg.ctl.send(CFG.cast) end end
-        end },
-    },
+    start = function()
+      local w = weaponCmd()   -- vigor needs empty hands
+      if w then dg.ctl.send(w) end
+      dg.ctl.say("healer: watching for " .. (ONLY and cap(ONLY) or (#NAMES .. " of your characters"))
+        .. " to rest (" .. castFor("&lt;name&gt;") .. " x" .. CFG.casts .. (w and ("; weapon away: " .. w) or "") .. ")")
+    end,
+    onStop = function() S.on = false; S.align = nil; S.pending = {}; killFail() end,
+    rules = rules,
   }
 end
 
@@ -2198,7 +2290,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.65"
+C.version = "0.66"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
