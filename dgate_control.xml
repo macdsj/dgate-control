@@ -2300,11 +2300,11 @@ end
 --   powertraining  ptmart ptclaw ptbite ptsting ptbreath ptweb    ...and look after yourself:
 --       * low on fatigue  -&gt; casts  invoke vigor &lt;you&gt;  (dg.ctl.vigorCasts times, 4 by default), then carries on.
 --                            If vigor will not cast it rests instead (dg.ctl.powerVigor = false = just rest, e.g. with a pocket healer).
---       * out of runes    -&gt; walks to the rune-renewal room, "shop renew all", walks back to where you were
---                            standing when you started (or to the room set with  powerroom back here ), carries on.
---   Set the rooms once:  stand in the renewal room, type  powerroom renew here   (or  powerroom renew 1234 ).
---   powerroom with no argument shows them.   renewtrip  makes a running ptXXX loop do the renew trip right now.
---   No mapper?  powerroom renewpath n;e;e   and   powerroom backpath w;w;s   use plain movement commands instead.
+--       * out of runes    -&gt; does the renew trip (below) and walks back to the room you started in, then carries on.
+--   The renew trip (dg.ctl.renewSteps, edit if the route changes) is:  walkto 38, go door, walkto 175, shoprenew
+--   (waits for the renewing to stop), walkto 174, go door, walkto the room you started the loop in.
+--   The loop remembers the room you were standing in when you started it (powerroom back here / NUMBER overrides it).
+--   renewtrip  makes a running ptXXX loop do the renew trip right now.   powerroom  shows the remembered room.
 --
 --   What counts as "out of runes" is a list of game lines: dg.ctl.runePatterns = { "...", ... }  (replaces the default
 --   guesses below -- '*' is a wildcard).  Paste me the real line and I will put it in.
@@ -2320,8 +2320,7 @@ local function powerLoad()
   end
 end
 local function powerSave()
-  if table.save then pcall(table.save, powerFile(), { renew = dg.ctlPower.renew, back = dg.ctlPower.back,
-                                                       renewpath = dg.ctlPower.renewpath, backpath = dg.ctlPower.backpath }) end
+  if table.save then pcall(table.save, powerFile(), { back = dg.ctlPower.back }) end
 end
 local function mapRoom()
   local r = getPlayerRoom and getPlayerRoom()
@@ -2335,21 +2334,16 @@ dg.ctlPowerRoom = function(arg)
   arg = tostring(arg or ""):gsub("^%s+", ""):gsub("%s+$", "")
   local key, val = arg:match("^(%S+)%s*(.-)$")
   key = key and key:lower() or ""
-  if key == "renew" or key == "back" then
+  if key == "back" then
     local n = (val:lower() == "here") and mapRoom() or tonumber(val)
     if not n then C.warn("powerroom: " .. (val:lower() == "here" and "the mapper does not know which room you are in" or ("'" .. val .. "' is not a room number"))); return end
-    P[key] = n; P[key .. "path"] = nil
-    powerSave(); C.say("powerroom: " .. key .. " room = " .. n)
-  elseif key == "renewpath" or key == "backpath" then
-    if val == "" then C.warn("powerroom: " .. key .. " needs commands, e.g.  powerroom " .. key .. " n;e;e"); return end
-    P[key] = val; P[key:gsub("path$", "")] = nil
-    powerSave(); C.say("powerroom: " .. key .. " = " .. val)
+    P.back = n; powerSave(); C.say("powerroom: practice room = " .. n .. " (kept until  powerroom clear )")
   elseif key == "clear" then
-    P.renew, P.back, P.renewpath, P.backpath = nil, nil, nil, nil
-    powerSave(); C.say("powerroom: cleared")
+    P.back = nil; powerSave(); C.say("powerroom: cleared -- loops use the room they were started in")
   else
-    C.say("powerroom: renew = " .. tostring(P.renew or P.renewpath or "not set") .. "   back = " .. tostring(P.back or P.backpath or "where the loop started")
-          .. "   (powerroom renew|back here|NUMBER,  renewpath|backpath n;e;e,  clear)")
+    local run = dg.ctlPowerNow and dg.ctlPowerNow.room0
+    C.say("powerroom: practice room = " .. tostring(P.back or run or "the room the loop is started in") .. (P.back and " (fixed)" or "") ..
+          "   (powerroom back here|NUMBER,  powerroom clear)")
   end
 end
 dg.ctlPowerTrip = function() if dg.ctlPowerNow and dg.ctlPowerNow.trip then dg.ctlPowerNow.trip("asked for") else dg.ctl.warn("renewtrip: no powertraining loop (ptmart, ptclaw, ...) is running") end end
@@ -2367,10 +2361,14 @@ local function attackLoop(label, nextCmd, supply)
       vigorAt = 10,                  -- the prompt line's fatigue (if you see it) at or below this: vigor
       cool = 12,                     -- seconds after a vigor round before low fatigue counts again
       restResume = 0.8, restMax = 120,
-      stepGap = 5, walkMax = 90, tiredWait = 15, tiredTries = 12, renewTries = 3, renewWait = 10,
+      walkMax = 90, tiredWait = 15, tiredTries = 12,
+      cmdWait = 4,                   -- seconds after a plain command (go door) before the next step
+      renewFirst = 10, renewQuiet = 6, renewMax = 120,   -- shoprenew: wait for the first "renewed" line, then until 6s pass without one
     }
     local S = { on = true, mode = "fight", n = 0, silent = 0, timers = {}, vigSeen = 0, vigRounds = 0 }
     local P = dg.ctlPower
+    local STEPS = dg.ctl.renewSteps or { { walk = 38 }, { cmd = "go door" }, { walk = 175 }, { alias = "shoprenew" },
+                                         { walk = 174 }, { cmd = "go door" }, { walk = "back" } }
     local function say(m) C.say(label .. ": " .. m) end
     local function after(sec, fn)
       local id
@@ -2430,7 +2428,7 @@ local function attackLoop(label, nextCmd, supply)
       after(CFG.cool, function() S.coolUntil = false end)
       if seen == 0 then   -- nothing cast at all
         S.noCast = (S.noCast or 0) + 1
-        if S.noCast == 1 and supply and S.trip and (P.renew or P.renewpath) and not S.tripped then
+        if S.noCast == 1 and supply and S.trip and (P.back or S.room0) and not S.tripped then
           say("no vigor cast -- assuming the runes are out"); S.trip("vigor would not cast"); return
         end
         startRest("vigor will not cast (" .. why .. ")"); return
@@ -2463,85 +2461,73 @@ local function attackLoop(label, nextCmd, supply)
       C.warn(label .. ": renew trip failed (" .. why .. "); the map thinks you are in room " .. tostring(mapRoom() or "?") .. ". Stopping.")
       C.loopStop("renew trip failed")
     end
-    -- go(room number | "cmd;cmd;cmd" | nil, onArrive)
+    -- go(room number, onArrive): walkto, then watch the mapper until it says we are there
     local function go(dest, arrive)
-      if type(dest) == "number" then
-        if mapRoom() == dest then after(0.5, arrive); return end
-        local ticks, seen, tries = 0, 0, 0
-        local poll, begin
-        begin = function()
-          S.tired = nil
-          say("walkto " .. dest)
-          expandAlias("walkto " .. dest)
-          ticks, seen = 0, 0
-          S.walkTimer = after(2, poll)
-        end
-        poll = function()
-          S.walkTimer = nil
-          ticks = ticks + 1
-          if mapRoom() == dest then seen = seen + 1 else seen = 0 end
-          if seen &gt;= 2 then S.onTired = nil; arrive(); return end
-          if ticks &gt; CFG.walkMax then tripFail("the walk to room " .. dest .. " did not end there"); return end
-          S.walkTimer = after(1, poll)
-        end
-        S.onTired = function()   -- too tired to walk: stop the mapper, wait, send walkto again
-          if S.tired then return end
-          S.tired = true
-          cancel(S.walkTimer); S.walkTimer = nil
-          if map and map.stopSpeedwalk then pcall(map.stopSpeedwalk) end
-          tries = tries + 1
-          if tries &gt; CFG.tiredTries then tripFail("still too tired to walk"); return end
-          say("too tired to walk -- waiting " .. CFG.tiredWait .. "s (" .. tries .. ")")
-          S.walkTimer = after(CFG.tiredWait, begin)
-        end
-        begin()
-      elseif type(dest) == "string" and dest ~= "" then
-        local cmds = {}
-        for c in dest:gmatch("[^;]+") do cmds[#cmds + 1] = c:gsub("^%s+", ""):gsub("%s+$", "") end
-        local i = 1
-        local function chunk()
-          local n = 0
-          while i &lt;= #cmds and n &lt; 4 do C.send(cmds[i]); i = i + 1; n = n + 1 end
-          if i &lt;= #cmds then after(CFG.stepGap, chunk) else after(CFG.stepGap, arrive) end
-        end
-        chunk()
-      else
-        tripFail("no room or path set -- use  powerroom renew here")
+      if not dest then tripFail("do not know the room to walk to"); return end
+      if mapRoom() == dest then after(0.5, arrive); return end
+      local ticks, seen, tries = 0, 0, 0
+      local poll, begin
+      begin = function()
+        S.tired = nil
+        say("walkto " .. dest)
+        expandAlias("walkto " .. dest)
+        ticks, seen = 0, 0
+        S.walkTimer = after(2, poll)
       end
+      poll = function()
+        S.walkTimer = nil
+        ticks = ticks + 1
+        if mapRoom() == dest then seen = seen + 1 else seen = 0 end
+        if seen &gt;= 2 then S.onTired = nil; arrive(); return end
+        if ticks &gt; CFG.walkMax then tripFail("the walk to room " .. dest .. " did not end there"); return end
+        S.walkTimer = after(1, poll)
+      end
+      S.onTired = function()   -- too tired to walk: stop the mapper, wait, send walkto again
+        if S.tired then return end
+        S.tired = true
+        cancel(S.walkTimer); S.walkTimer = nil
+        if map and map.stopSpeedwalk then pcall(map.stopSpeedwalk) end
+        tries = tries + 1
+        if tries &gt; CFG.tiredTries then tripFail("still too tired to walk"); return end
+        say("too tired to walk -- waiting " .. CFG.tiredWait .. "s (" .. tries .. ")")
+        S.walkTimer = after(CFG.tiredWait, begin)
+      end
+      begin()
     end
-    local function renewDone() end
+    -- shoprenew renews whatever is low and prints a line per rune: done when those lines stop coming
+    local function waitRenew(nxt)
+      S.renewing, S.sawRenew = true, false
+      local function finish()
+        S.renewing = false; S.renewBump = nil
+        cancel(S.quietTimer); cancel(S.maxTimer); S.quietTimer, S.maxTimer = nil, nil
+        nxt()
+      end
+      S.renewBump = function()
+        S.sawRenew = true
+        cancel(S.quietTimer); S.quietTimer = after(CFG.renewQuiet, finish)
+      end
+      S.quietTimer = after(CFG.renewFirst, function() S.quietTimer = nil; if not S.sawRenew then C.warn(label .. ": no 'renewed' line after shoprenew -- carrying on anyway") end; finish() end)
+      S.maxTimer = after(CFG.renewMax, finish)
+    end
+    local function runSteps(steps, i, back, done)
+      local st = steps[i]
+      if not st then done(); return end
+      local function nxt() runSteps(steps, i + 1, back, done) end
+      if st.walk then go(st.walk == "back" and back or st.walk, nxt)
+      elseif st.cmd then C.send(st.cmd); after(CFG.cmdWait, nxt)
+      elseif st.alias then say(st.alias); expandAlias(st.alias); waitRenew(nxt)
+      else nxt() end
+    end
     S.trip = function(why)
       if not supply then return end
       if S.mode == "trip" then return end
-      local dest = P.renew or P.renewpath
-      if not dest then
-        C.warn(label .. ": out of runes (" .. why .. ") but no renewal room is set -- stand there and type  powerroom renew here")
-        startRest("out of runes")
-        return
-      end
-      local back = P.back or P.backpath or S.room0
-      if not back then C.warn(label .. ": out of runes but I do not know where to come back to -- type  powerroom back here  in the practice room"); startRest("out of runes"); return end
+      local back = P.back or S.room0
+      if not back then C.warn(label .. ": out of runes but I never learned which room you practice in (the mapper did not know it when the loop started) -- type  powerroom back here  in the practice room"); startRest("out of runes"); return end
       cancel(stallTimer); cancel(S.vigTimer); cancel(S.restTimer); S.vigTimer, S.restTimer = nil, nil
       S.mode, S.tripped = "trip", true
       say("out of runes (" .. why .. ") -- off to renew them")
       C.send("q c")
-      go(dest, function()
-        local tries = 0
-        local function renew()
-          tries = tries + 1
-          if tries &gt; CFG.renewTries then tripFail("no 'runes have been renewed' line after " .. CFG.renewTries .. " tries"); return end
-          S.renewing = true
-          C.send("shop renew all")
-          S.renewTimer = after(CFG.renewWait, function() S.renewTimer = nil; if S.renewing then renew() end end)
-        end
-        S.renewed = function()
-          if not S.renewing then return end
-          S.renewing = false; cancel(S.renewTimer); S.renewTimer = nil
-          say("runes renewed -- heading back")
-          go(back, function() say("back -- carrying on"); S.noCast = 0; fight() end)
-        end
-        renew()
-      end)
+      runSteps(STEPS, 1, back, function() say("back -- carrying on"); S.noCast = 0; fight() end)
     end
 
     -- ---------------------------------------------------------------- the rules
@@ -2592,7 +2578,7 @@ local function attackLoop(label, nextCmd, supply)
         { "i don't see what you are referring to", function()
             if S.mode == "vigor" then C.warn(label .. ": the game did not find '" .. selfName() .. "' -- set dg.ctl.selfName to the name others see"); vigorDone("no target") end
           end },
-        { "all available runes have been renewed", function() if S.renewed then S.renewed() end end },
+        { "renewed", function() if S.renewBump and S.renewing then S.renewBump() end end },
       }
       for _, r in ipairs(more) do rules[#rules + 1] = r end
       for _, p in ipairs(C.runePatterns or RUNE_OUT) do
@@ -2605,7 +2591,10 @@ local function attackLoop(label, nextCmd, supply)
       start = function(t)
         S.t = t; S.room0 = mapRoom()
         dg.ctlPowerNow = S
-        if supply then say("on vs " .. t .. " (vigor x" .. (tonumber(C.vigorCasts) or 4) .. " when low; renew trip " .. ((P.renew or P.renewpath) and "set" or "NOT set -- powerroom renew here") .. ")") end
+        if supply then
+          say("on vs " .. t .. " (vigor x" .. (tonumber(C.vigorCasts) or 4) .. " when low; practice room " .. tostring(P.back or S.room0 or "UNKNOWN") .. ")")
+          if not (P.back or S.room0) then C.warn(label .. ": the mapper does not know which room this is -- a renew trip would not know where to come back to (powerroom back here)") end
+        end
         fight()
       end,
       onStop = function() S.on = false; cancelAll(); if dg.ctlPowerNow == S then dg.ctlPowerNow = nil end end,
@@ -2824,7 +2813,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.73"
+C.version = "0.74"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
