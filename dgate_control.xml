@@ -2299,7 +2299,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.67"
+C.version = "0.68"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -3087,6 +3087,11 @@ function C.loginList()
   for _, c in ipairs(L.common or {}) do list[#list + 1] = c end
   local per = L.chars and C.char and L.chars[C.char:lower()]
   for _, c in ipairs(per or {}) do list[#list + 1] = c end
+  if L.inv ~= false then   -- inv at login: tells control what is readied (set  dg.ctlData.login.inv = false  to skip)
+    local have = false
+    for _, c in ipairs(list) do if c == "inv" then have = true end end
+    if not have then list[#list + 1] = "inv" end
+  end
   return list
 end
 
@@ -3353,6 +3358,43 @@ function C.init()
     local name = trim(matches[2] or ""):lower()
     local cur = dg.ctlWield and dg.ctlWield[wieldKey()]
     if cur and cur.name == name then dg.ctlWield[wieldKey()] = false end
+  end)
+
+  -- The "inv" screen ("Items equipped:" / "Items carried:" / "You have N silver pieces ...") tells us what
+  -- is readied at login (or any time you type inv): an equipped item whose slot is not armour, clothing or
+  -- jewellery is taken to be the readied weapon. Nothing like that -> nothing readied.
+  local NOT_WEAPON = { ["body armor"] = true, ["on head"] = true, ["around neck"] = true, ["over hands"] = true,
+    ["on feet"] = true, ["over shoulders"] = true, ["legs (pants)"] = true, ["torso (shirt)"] = true,
+    ["shield arm"] = true, ["on back"] = true, ["instrument"] = true, ["on right hand"] = true,
+    ["on left hand"] = true, ["in right ear"] = true, ["in left ear"] = true, ["body (dress/robe)"] = true }
+  local function itemName(n) return trim((n:lower():gsub("^an?%s+", ""):gsub("^some%s+", ""):gsub("^the%s+", ""))) end
+  local function invStart() if not C.inv then C.inv = { mode = nil, eq = {}, car = {} } end end
+  C.trig("sys", "^Items equipped:", function() C.inv = { mode = "eq", eq = {}, car = {} } end)
+  C.trig("sys", "^Items carried:", function() invStart(); C.inv.mode = "car" end)
+  C.trig("sys", "^\\s+(.+?)\\s*\\[[\\d.]+\\s*lbs?\\]\\s*(?:\\((.+)\\))?\\s*$", function()
+    if not (C.inv and C.inv.mode) then return end
+    local name, slot = itemName(matches[2] or ""), trim(matches[3] or ""):lower()
+    if C.inv.mode == "eq" then C.inv.eq[#C.inv.eq + 1] = { name = name, slot = slot }
+    else C.inv.car[#C.inv.car + 1] = name end
+  end)
+  C.trig("sys", "^You have \\d+ silver pieces", function()
+    local I = C.inv
+    C.inv = nil
+    if not I or not I.mode then return end
+    dg.ctlInv = dg.ctlInv or {}
+    dg.ctlInv[wieldKey()] = { equipped = I.eq, carried = I.car }
+    local found
+    for _, it in ipairs(I.eq) do
+      if not NOT_WEAPON[it.slot] and not it.name:find("torch", 1, true) and not it.name:find("lantern", 1, true) then found = it; break end
+    end
+    dg.ctlWield = dg.ctlWield or {}
+    if found then
+      dg.ctlWield[wieldKey()] = { name = found.name, noun = itemNoun(found.name) }
+      C.say("weapon in hand: " .. found.name .. "  (" .. (dg.ctlWeaponCmd and dg.ctlWeaponCmd() or "?") .. ")")
+    else
+      dg.ctlWield[wieldKey()] = false
+      C.say("weapon in hand: none")
+    end
   end)
   -- the HUD's login info check prints "You are disguised." -&gt; ask for the details too
   C.trig("sys", "You are disguised\\.", function()
