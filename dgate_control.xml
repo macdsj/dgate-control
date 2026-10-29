@@ -200,6 +200,13 @@ dg.ctl.loopStart("healer", "")</script>
           <regex>^dglogin(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>ptsneakd</name>
+          <script>dg.ctl.loopStart("ptsneakd", "")</script>
+          <command />
+          <packageName />
+          <regex>^ptsneakd$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>ptsneakb</name>
           <script>dg.ctl.loopStart("ptsneakb", "")</script>
           <command />
@@ -1291,6 +1298,11 @@ D.classKits = {
 -- and the  unwield  alias.
 D.weapon = D.weapon or { default = "dirk" }
 
+-- The spell ptsneakd casts at YOU before resting, to wound you slightly (so a healer's vigor earns favors).
+-- woundSpell = { default = "dart", raptorian = "larrow" }   (lower-case character names; false = none)
+-- Target is your current name (disguise name if you wear one); override with dg.ctl.selfName = "name".
+D.woundSpell = D.woundSpell or { default = "dart" }
+
 -- lines that end any targeted loop, for every character
 dg.ctlStops = { "but the*is dead", "I don't see what you are referring to" }
 
@@ -1379,11 +1391,24 @@ local function myNames()
 end
 dg.ctlMyNames = myNames
 
+-- "invoke dart ferrets": the self-wounding cast for this character, or nil if none is set
+local function woundCmd()
+  local W = dg.ctlData and dg.ctlData.woundSpell or {}
+  local who = tostring(dg.ctl.char or ""):lower()
+  local sp = W[who]
+  if sp == nil then sp = W.default end
+  if sp == false or sp == nil or tostring(sp) == "" then return nil end
+  local me = dg.ctl.selfName or (tostring(dg.ctl.me or ""):lower():match("^([^%s]+)")) or who
+  if me == "" then me = who end
+  return "invoke " .. tostring(sp) .. " " .. me
+end
+
 local function stealth(kind)
   local FOLLOW = (kind == "follow")               -- ptsneakf: when tired, line up with the healer's rank, then rest
-  local BASIC = (kind == "basic") or FOLLOW       -- ptsneakb/f: sneak training with no healer or training trips (rests when tired)
+  local WOUND = (kind == "wound")                 -- ptsneakd: when tired, cast a dart at yourself, then rest where you stand
+  local BASIC = (kind == "basic") or FOLLOW or WOUND   -- ptsneakb/f/d: sneak training with no healer or training trips (rests when tired)
   local SNEAK = (kind == "sneak") or BASIC
-  local NAME  = FOLLOW and "ptsneakf" or (BASIC and "ptsneakb" or (SNEAK and "ptsneak" or "pthide"))
+  local NAME  = WOUND and "ptsneakd" or (FOLLOW and "ptsneakf" or (BASIC and "ptsneakb" or (SNEAK and "ptsneak" or "pthide")))
   local HEALER = tostring(dg.ctl.healerName or "Fropwaffle"):lower()
   local SLINK_CHARS = { kressa = true, katie = true, kasper = true }   -- who keeps shadow slinking up (ptsneak only)
   local CFG = {
@@ -1431,6 +1456,7 @@ local function stealth(kind)
     standWait = 4,    -- seconds to wait for "You stand up." before asking again
     alignMax  = 12,   -- ptsneakf: most advance/retreat moves while lining up with the healer
     alignWait = 12,   -- ptsneakf: seconds without a usable "tac" answer before it just rests where it is
+    woundWait = 10,   -- ptsneakd: seconds to wait for the self-dart before resting anyway
     basicWait = 8,    -- ptsneakb: seconds to wait and try again when the game says you are too tired
   }
   local S = { on = true, hidden = false, mode = "adv", retLeft = 0, clear = false,
@@ -1442,7 +1468,7 @@ local function stealth(kind)
 
   local function now() return (getEpoch and getEpoch()) or os.time() end
 
-  local alignTimer
+  local alignTimer, woundTimer
   local function timersOff()
     if alignTimer then killTimer(alignTimer); alignTimer = nil end
     if timer    then killTimer(timer);    timer    = nil end
@@ -1485,7 +1511,7 @@ local function stealth(kind)
 
   step = function(wait)
     if not S.on then return end
-    if S.resting or S.trip or S.align or S.standing then return end   -- worn out (resting / off to the healer / lining up); those resume us
+    if S.resting or S.trip or S.align or S.standing or S.wounding then return end   -- worn out (resting / off to the healer / lining up); those resume us
     if S.casting then return end   -- a cast is in flight; its "[N sec. delay]" line resumes us
     if S.trainPending then S.trainPending = false; startTrip("train"); return end   -- a skill is ready to train
     if S.useSlink and not S.slink then
@@ -1711,9 +1737,36 @@ local function stealth(kind)
     alignArm()
   end
 
+  ---------------------------------------------------------------- wound yourself, then rest (ptsneakd)
+  -- The healer is another player: just wound yourself a little (his vigor then earns favors) and rest here.
+  local function woundDone(why)
+    if woundTimer then killTimer(woundTimer); woundTimer = nil end
+    if not S.wounding then return end
+    S.wounding = false
+    if why then dg.ctl.say(NAME .. ": " .. why .. " -- resting") end
+    startRest()
+  end
+  local function startWound()
+    if S.wounding or S.resting or not S.on then return end
+    local cmd = woundCmd()
+    if not cmd then startRest(); return end
+    S.wounding, S.casting, S.castSeen, S.hidden = true, false, false, false
+    timersOff()
+    dg.ctl.say(NAME .. ": out of fatigue -- wounding myself slightly first (" .. cmd .. ")")
+    dg.ctl.send("q c")
+    if not S.unwielded then   -- spellcasting needs empty hands
+      S.unwielded = true
+      local w = weaponCmd()
+      if w then dg.ctl.send(w) end
+    end
+    dg.ctl.send(cmd)
+    woundTimer = tempTimer(CFG.woundWait, function() woundTimer = nil; if S.on and S.wounding then woundDone("no cast seen") end end)
+  end
+
   -- Out of fatigue: the healer trip when we are in the practice room and the mapper can walk, else rest.
   local function exhausted()
-    if S.resting or S.trip or S.align or not S.on then return end
+    if S.resting or S.trip or S.align or S.wounding or not S.on then return end
+    if WOUND then startWound(); return end
     if FOLLOW then startAlign(); return end
     if BASIC then startRest(); return end   -- ptsneakb: no heal trip, just rest and let the pocket healer work
     local TR = CFG.trip
@@ -1739,7 +1792,7 @@ local function stealth(kind)
     target = false,
     qc = true,
     start = function() step(0) end,
-    onStop = function() S.on = false; S.align = nil; S.standing = false; if standTimer then killTimer(standTimer); standTimer = nil end; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
+    onStop = function() S.on = false; S.align = nil; S.wounding = false; if woundTimer then killTimer(woundTimer); woundTimer = nil end; S.standing = false; if standTimer then killTimer(standTimer); standTimer = nil end; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
     rules = {
       -- fully rested ("You awaken feeling great. What a refreshing nap."): stop resting and stand
       { "you awaken feeling great",             function() if S.resting then endRest("fully rested") end end },
@@ -1762,6 +1815,7 @@ local function stealth(kind)
       -- worn out: rest (the game says one of these when fatigue is gone)
       { "warning: current fatigue below",       exhausted },
       { "don't have enough energy to do that",  function()
+          if S.wounding then woundDone("too tired to cast"); return end
           if S.align then alignDone("too tired to move -- resting here")
           elseif S.trip then
             if S.trip.onNoEnergy then S.trip.onNoEnergy() end   -- mid-walk: wait and walk again
@@ -1842,6 +1896,22 @@ local function stealth(kind)
           local l = line or (getCurrentLine and getCurrentLine()) or ""
           if not listHas(l, HEALER) then return end
           alignSeen(S.align.sec)
+        end },
+    }
+    for _, r in ipairs(more) do def.rules[#def.rules + 1] = r end
+  end
+
+  if WOUND then
+    local more = {
+      { "weaving those runes", function() if S.wounding then woundDone("self-dart cast") end end },
+      { "i don't see what you are referring to", function()
+          if S.wounding then dg.ctl.warn(NAME .. ": the game did not find '" .. tostring(woundCmd()) .. "' -- set dg.ctl.selfName to the name others see"); woundDone("no target") end
+        end },
+      { "interfered with by what you have readied", function()
+          if S.wounding then dg.ctl.warn(NAME .. ": a readied weapon spoiled the cast -- try  unwield  (or set dg.ctlData.weapon)"); woundDone("hands full") end
+        end },
+      { "you cannot have anything in your hands", function()
+          if S.wounding then dg.ctl.warn(NAME .. ": hands not empty -- try  unwield  (or set dg.ctlData.weapon)"); woundDone("hands full") end
         end },
     }
     for _, r in ipairs(more) do def.rules[#def.rules + 1] = r end
@@ -2151,6 +2221,7 @@ dg.ctlLoops = {
   ptsneak = { target = false, make = function() return stealth("sneak") end },
   pthide  = { target = false, make = function() return stealth("hide")  end },
   ptsneakf = { target = false, make = function() return stealth("follow") end },   -- ptsneakb, but lines up with the healer before resting
+  ptsneakd = { target = false, make = function() return stealth("wound") end },   -- ptsneakb, but casts a dart at yourself first (another player heals you)
   ptsneakb = { target = false, make = function() return stealth("basic") end },   -- ptsneak without any trips (pocket healer)
 
   healer = { target = false, make = function() return healerLoop() end },   -- healer [Name]: pocket healer for a resting partner
@@ -2299,7 +2370,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.68"
+C.version = "0.69"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -3190,13 +3261,13 @@ end
 
 ---------------------------------------------------------------------------
 -- Folders / triggers that follow the running loop (your own Mudlet triggers):
---   * any "pt..." loop (ptsneak, pthide, ptsneakb, ptsneakf, ptdis, ...) turns the gag folder ON;
+--   * any "pt..." loop (ptsneak, pthide, ptsneakb, ptsneakf, ptsneakd, ptdis, ...) turns the gag folder ON;
 --     every loop stop (F4 / halt / done) turns it OFF again.
 --   * the stealth loops (ptsneak, pthide, ptsneakb, ptsneakf) turn the old "hide" trigger OFF while they
 --     run (they re-hide by themselves), and put it back as it was when the loop stops.
 -- Names come from dg.ctlData.autoSwitch (all optional):
 --   gagFolder = "Training Gags"   trainPrefix = "pt"   hideTrigger = "hide"
---   hideLoops = { ptsneak = true, pthide = true, ptsneakb = true, ptsneakf = true }
+--   hideLoops = { ptsneak = true, pthide = true, ptsneakb = true, ptsneakf = true, ptsneakd = true }
 -- Set gagFolder = false (or hideTrigger = false) to switch that part off.
 ---------------------------------------------------------------------------
 local function swCfg()
@@ -3206,7 +3277,7 @@ local function swCfg()
     gagFolder   = pick(A.gagFolder, "Training Gags"),
     trainPrefix = pick(A.trainPrefix, "pt"),
     hideTrigger = pick(A.hideTrigger, "hide"),
-    hideLoops   = A.hideLoops or { ptsneak = true, pthide = true, ptsneakb = true, ptsneakf = true },
+    hideLoops   = A.hideLoops or { ptsneak = true, pthide = true, ptsneakb = true, ptsneakf = true, ptsneakd = true },
   }
 end
 local function trigExists(name)
