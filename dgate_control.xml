@@ -1457,6 +1457,7 @@ local function stealth(kind)
     alignMax  = 12,   -- ptsneakf: most advance/retreat moves while lining up with the healer
     alignWait = 12,   -- ptsneakf: seconds without a usable "tac" answer before it just rests where it is
     woundWait = 10,   -- ptsneakd: seconds to wait for the self-dart before resting anyway
+    woundAt   = 9,    -- ptsneakd: cast the self-dart once fatigue (from the prompt line) is this low or lower
     basicWait = 8,    -- ptsneakb: seconds to wait and try again when the game says you are too tired
   }
   local S = { on = true, hidden = false, mode = "adv", retLeft = 0, clear = false,
@@ -1904,6 +1905,18 @@ local function stealth(kind)
   if WOUND then
     local more = {
       { "weaving those runes", function() if S.wounding then woundDone("self-dart cast") end end },
+      -- the prompt line "[Health: 157/157 - Fatigue: 75/75] ..." comes after every command: act on it as soon
+      -- as fatigue reaches single digits (shadow slinking drains about 1 FP per 5 seconds; the dart needs 3)
+      { "fatigue:", function()
+          local cur, max = (line or (getCurrentLine and getCurrentLine()) or ""):match("[Ff]atigue:%s*(%d+)%s*/%s*(%d+)")
+          cur, max = tonumber(cur), tonumber(max)
+          if not (cur and max and max &gt; 0 and S.on) then return end
+          if S.resting then
+            if cur / max &gt;= CFG.restResume then endRest(cur .. "/" .. max .. " fatigue") end
+          elseif cur &lt;= CFG.woundAt and not (S.trip or S.align or S.wounding or S.standing) then
+            startWound()
+          end
+        end },
       { "i don't see what you are referring to", function()
           if S.wounding then dg.ctl.warn(NAME .. ": the game did not find '" .. tostring(woundCmd()) .. "' -- set dg.ctl.selfName to the name others see"); woundDone("no target") end
         end },
@@ -2370,7 +2383,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.69"
+C.version = "0.70"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
