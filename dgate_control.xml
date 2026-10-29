@@ -49,6 +49,13 @@ dg.ctl.sendArg("k", matches[2])</script>
           <regex>^beat(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>mart</name>
+          <script>dg.ctl.loopStart("mart", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^mart(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>thk</name>
           <script>dg.ctl.loopStart("thk", matches[2])</script>
           <command />
@@ -2200,6 +2207,24 @@ dg.ctlLoops = {
   ------------------------------------------------------------ generic (every character)
   killing = { qc = true, start = "k {t}",               rules = weaponRules },
   beat    = { qc = true, start = "punch {t}",           rules = beatRules   },
+  -- Martial arts (Hand clerics): mart ORC  alternates  martial strike at ORC / martial kick at ORC.
+  -- Each "[N sec. delay]" the game prints after an attack sends the next move (the game's own delay paces it).
+  -- Moves: dg.ctl.martialMoves = { "strike", "kick" }  (add the new ones as you unlock them; one move = repeat it)
+  mart = { make = function()
+    local MOVES = (dg.ctl.martialMoves and #dg.ctl.martialMoves > 0) and dg.ctl.martialMoves or { "strike", "kick" }
+    local i = 0
+    local function nextMove(t) i = i % #MOVES + 1; dg.ctl.send("martial " .. MOVES[i] .. " at " .. t) end
+    local function again(t) dg.ctl.send("martial " .. MOVES[math.max(i, 1)] .. " at " .. t) end   -- same move again
+    return {
+      qc = true,
+      start = function(t) nextMove(t) end,
+      rules = {
+        { "sec. delay]",                                  function(t) nextMove(t) end },
+        { "you're too close",                             function(t) again(t) end },
+        { "you must move closer to your opponent's rank", function(t) again(t) end },
+      },
+    }
+  end },
   thk     = { qc = true, start = "throw spiked at {t}", rules = weaponRules },
 
   -- First aid on yourself:  fame.  Sends  treat {me}  and sends it again every time the game
@@ -2383,7 +2408,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.71"
+C.version = "0.72"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
