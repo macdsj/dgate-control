@@ -2358,7 +2358,7 @@ local function attackLoop(label, nextCmd, supply)
     local C = dg.ctl
     local CFG = {
       stall = 15, stallMax = 6,      -- no reply from the game for this long: send the attack again (give up after stallMax in a row)
-      vigorAt = 10,                  -- the prompt line's fatigue (if you see it) at or below this: vigor
+      vigorAt = tonumber(dg.ctl.vigorAt) or 8,   -- the prompt line's fatigue (if you see it) at or below this: vigor (a cast costs 3, so leave room)
       cool = 12,                     -- seconds after a vigor round before low fatigue counts again
       restResume = 0.8, restMax = 120,
       walkMax = 90, tiredWait = 15, tiredTries = 12,
@@ -2603,7 +2603,7 @@ local function attackLoop(label, nextCmd, supply)
   end
 end
 
-local function martMoves() return (dg.ctl.martialMoves and #dg.ctl.martialMoves &gt; 0) and dg.ctl.martialMoves or { "strike", "kick" } end
+local function martMoves() return (dg.ctl.martialMoves and #dg.ctl.martialMoves &gt; 0) and dg.ctl.martialMoves or { "backkick" } end
 -- mart: alternate the moves.  S.again = repeat the last move (it was refused, or no answer came).
 local function nextMart(S, t, again)
   local M = martMoves()
@@ -2813,7 +2813,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.75"
+C.version = "0.76"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
