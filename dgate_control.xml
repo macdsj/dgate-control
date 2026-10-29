@@ -2348,7 +2348,7 @@ dg.ctlPowerRoom = function(arg)
 end
 dg.ctlPowerTrip = function() if dg.ctlPowerNow and dg.ctlPowerNow.trip then dg.ctlPowerNow.trip("asked for") else dg.ctl.warn("renewtrip: no powertraining loop (ptmart, ptclaw, ...) is running") end end
 
-local RUNE_OUT = { "you do not have the runes", "you don't have the runes", "you have no runes", "out of runes",
+local RUNE_OUT = { "enough charges left to invoke", "visit the runemage guild for a recharge", "you do not have the runes", "you don't have the runes", "you have no runes", "out of runes",
                    "not enough runes", "lack the runes", "no runes left", "renew your runes", "runes are depleted" }
 
 -- one factory for all of them.  nextCmd(state, target) -&gt; the attack command to send;  supply = vigor + renew trip.
@@ -2813,7 +2813,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.74"
+C.version = "0.75"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
