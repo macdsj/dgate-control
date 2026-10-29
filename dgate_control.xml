@@ -171,7 +171,7 @@ dg.ctl.loopStart("ptsneakf", "")</script>
         <Alias isActive="yes" isFolder="no">
           <name>unwield</name>
           <script>local w = dg.ctlWeaponCmd and dg.ctlWeaponCmd()
-if w then dg.ctl.send(w) else dg.ctl.warn("unwield: no weapon set for this character (dg.ctlData.weapon in the loops script)") end</script>
+if w then dg.ctl.send(w) else dg.ctl.say("unwield: nothing readied that I know of") end</script>
           <command />
           <packageName />
           <regex>^unwield$</regex>
@@ -1328,10 +1328,19 @@ local function listHas(l, name)   -- "Fropwaffle, Jennifer" -> is "jennifer" one
   return false
 end
 
--- the command that puts your weapon away ("rem dirk"), or nil if auto-removal is off for this character
+-- the command that puts your weapon away ("rem dagger"), or nil if there is nothing to put away.
+-- Order: what control saw you ready this session (dg.ctlWield, filled by the "is now your ready weapon"
+-- / "You return your ..." lines) -> else the fixed fallback in dg.ctlData.weapon (default "dirk").
+-- dg.ctlData.weaponForm = "noun" (default: "rem dagger") or "full" ("rem short simple dagger").
 local function weaponCmd()
-  local W = dg.ctlData and dg.ctlData.weapon or {}
   local who = tostring(dg.ctl.char or ""):lower()
+  local seen = dg.ctlWield and dg.ctlWield[who]
+  if seen == false then return nil end                    -- we saw it put away: nothing to remove
+  if seen then
+    local form = dg.ctlData and dg.ctlData.weaponForm or "noun"
+    return "rem " .. (form == "full" and seen.name or seen.noun)
+  end
+  local W = dg.ctlData and dg.ctlData.weapon or {}
   local w = W[who]
   if w == nil then w = W.default end
   if w == false or w == nil or tostring(w) == "" then return nil end
@@ -2290,7 +2299,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.66"
+C.version = "0.67"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -3328,6 +3337,23 @@ function C.init()
 
   C.kill("sys")
   C.trig("sys", "Welcome to Dragon's Gate, (\\w+)", function() C.setChar(matches[2]); C.disgAsked = C.char; C.loginRun() end)
+  -- remember which weapon is readied, so unwield / the sneak loops / healer know what to take off:
+  --   "The short simple dagger is now your ready weapon."     -> readied
+  --   "You return your short iron dagger."                    -> that one is put away (when you ready a
+  --   different weapon this names the OLD one, so it only clears the record if it is the same item)
+  local function wieldKey() return tostring(C.char or ""):lower() end
+  local function itemNoun(name) return name:match("([%a'%-]+)%s*$") or name end
+  C.trig("sys", "^(?:The |An? )?(.+?) is now your ready weapon", function()
+    local name = trim(matches[2] or ""):lower()
+    if name == "" then return end
+    dg.ctlWield = dg.ctlWield or {}
+    dg.ctlWield[wieldKey()] = { name = name, noun = itemNoun(name) }
+  end)
+  C.trig("sys", "^You return your (.+?)\\.\\s*$", function()
+    local name = trim(matches[2] or ""):lower()
+    local cur = dg.ctlWield and dg.ctlWield[wieldKey()]
+    if cur and cur.name == name then dg.ctlWield[wieldKey()] = false end
+  end)
   -- the HUD's login info check prints "You are disguised." -&gt; ask for the details too
   C.trig("sys", "You are disguised\\.", function()
     local now = os.time()
