@@ -56,6 +56,97 @@ dg.ctl.sendArg("k", matches[2])</script>
           <regex>^mart(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>clawk</name>
+          <script>dg.ctl.loopStart("clawk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^clawk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>bitek</name>
+          <script>dg.ctl.loopStart("bitek", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^bitek(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>stingk</name>
+          <script>dg.ctl.loopStart("stingk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^stingk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>breathk</name>
+          <script>dg.ctl.loopStart("breathk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^breathk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>webk</name>
+          <script>dg.ctl.loopStart("webk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^webk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ptmart</name>
+          <script>dg.ctl.loopStart("ptmart", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ptmart(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ptclaw</name>
+          <script>dg.ctl.loopStart("ptclaw", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ptclaw(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ptbite</name>
+          <script>dg.ctl.loopStart("ptbite", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ptbite(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ptsting</name>
+          <script>dg.ctl.loopStart("ptsting", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ptsting(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ptbreath</name>
+          <script>dg.ctl.loopStart("ptbreath", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ptbreath(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ptweb</name>
+          <script>dg.ctl.loopStart("ptweb", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ptweb(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>powerroom</name>
+          <script>dg.ctlPowerRoom(matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^powerroom(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>renewtrip</name>
+          <script>dg.ctlPowerTrip()</script>
+          <command />
+          <packageName />
+          <regex>^renewtrip$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>thk</name>
           <script>dg.ctl.loopStart("thk", matches[2])</script>
           <command />
@@ -2202,29 +2293,353 @@ local function healerLoop()
   }
 end
 
+------------------------------------------------------------------------------------------------
+-- Attack loops (martial arts, natural attacks) -- plain  and  powertraining.
+--
+--   plain          mart  clawk  bitek  stingk  breathk  webk      attack until the target is gone
+--   powertraining  ptmart ptclaw ptbite ptsting ptbreath ptweb    ...and look after yourself:
+--       * low on fatigue  -&gt; casts  invoke vigor &lt;you&gt;  (dg.ctl.vigorCasts times, 4 by default), then carries on.
+--                            If vigor will not cast it rests instead (dg.ctl.powerVigor = false = just rest, e.g. with a pocket healer).
+--       * out of runes    -&gt; walks to the rune-renewal room, "shop renew all", walks back to where you were
+--                            standing when you started (or to the room set with  powerroom back here ), carries on.
+--   Set the rooms once:  stand in the renewal room, type  powerroom renew here   (or  powerroom renew 1234 ).
+--   powerroom with no argument shows them.   renewtrip  makes a running ptXXX loop do the renew trip right now.
+--   No mapper?  powerroom renewpath n;e;e   and   powerroom backpath w;w;s   use plain movement commands instead.
+--
+--   What counts as "out of runes" is a list of game lines: dg.ctl.runePatterns = { "...", ... }  (replaces the default
+--   guesses below -- '*' is a wildcard).  Paste me the real line and I will put it in.
+------------------------------------------------------------------------------------------------
+dg.ctlPower = dg.ctlPower or {}
+local function powerFile() return ((getMudletHomeDir and getMudletHomeDir()) or ".") .. "/dg_power.lua" end
+local function powerLoad()
+  if dg.ctlPower.loaded then return end
+  dg.ctlPower.loaded = true
+  if table.load then
+    local f = io.open(powerFile(), "r")
+    if f then f:close(); pcall(table.load, powerFile(), dg.ctlPower) end
+  end
+end
+local function powerSave()
+  if table.save then pcall(table.save, powerFile(), { renew = dg.ctlPower.renew, back = dg.ctlPower.back,
+                                                       renewpath = dg.ctlPower.renewpath, backpath = dg.ctlPower.backpath }) end
+end
+local function mapRoom()
+  local r = getPlayerRoom and getPlayerRoom()
+  if not r or r &lt; 0 then r = map and map.currentRoom end
+  return tonumber(r)
+end
+
+dg.ctlPowerRoom = function(arg)
+  powerLoad()
+  local P, C = dg.ctlPower, dg.ctl
+  arg = tostring(arg or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local key, val = arg:match("^(%S+)%s*(.-)$")
+  key = key and key:lower() or ""
+  if key == "renew" or key == "back" then
+    local n = (val:lower() == "here") and mapRoom() or tonumber(val)
+    if not n then C.warn("powerroom: " .. (val:lower() == "here" and "the mapper does not know which room you are in" or ("'" .. val .. "' is not a room number"))); return end
+    P[key] = n; P[key .. "path"] = nil
+    powerSave(); C.say("powerroom: " .. key .. " room = " .. n)
+  elseif key == "renewpath" or key == "backpath" then
+    if val == "" then C.warn("powerroom: " .. key .. " needs commands, e.g.  powerroom " .. key .. " n;e;e"); return end
+    P[key] = val; P[key:gsub("path$", "")] = nil
+    powerSave(); C.say("powerroom: " .. key .. " = " .. val)
+  elseif key == "clear" then
+    P.renew, P.back, P.renewpath, P.backpath = nil, nil, nil, nil
+    powerSave(); C.say("powerroom: cleared")
+  else
+    C.say("powerroom: renew = " .. tostring(P.renew or P.renewpath or "not set") .. "   back = " .. tostring(P.back or P.backpath or "where the loop started")
+          .. "   (powerroom renew|back here|NUMBER,  renewpath|backpath n;e;e,  clear)")
+  end
+end
+dg.ctlPowerTrip = function() if dg.ctlPowerNow and dg.ctlPowerNow.trip then dg.ctlPowerNow.trip("asked for") else dg.ctl.warn("renewtrip: no powertraining loop (ptmart, ptclaw, ...) is running") end end
+
+local RUNE_OUT = { "you do not have the runes", "you don't have the runes", "you have no runes", "out of runes",
+                   "not enough runes", "lack the runes", "no runes left", "renew your runes", "runes are depleted" }
+
+-- one factory for all of them.  nextCmd(state, target) -&gt; the attack command to send;  supply = vigor + renew trip.
+local function attackLoop(label, nextCmd, supply)
+  return function()
+    powerLoad()
+    local C = dg.ctl
+    local CFG = {
+      stall = 15, stallMax = 6,      -- no reply from the game for this long: send the attack again (give up after stallMax in a row)
+      vigorAt = 10,                  -- the prompt line's fatigue (if you see it) at or below this: vigor
+      cool = 12,                     -- seconds after a vigor round before low fatigue counts again
+      restResume = 0.8, restMax = 120,
+      stepGap = 5, walkMax = 90, tiredWait = 15, tiredTries = 12, renewTries = 3, renewWait = 10,
+    }
+    local S = { on = true, mode = "fight", n = 0, silent = 0, timers = {}, vigSeen = 0, vigRounds = 0 }
+    local P = dg.ctlPower
+    local function say(m) C.say(label .. ": " .. m) end
+    local function after(sec, fn)
+      local id
+      id = tempTimer(sec, function() S.timers[id] = nil; if S.on then fn() end end)
+      S.timers[id] = true
+      return id
+    end
+    local function cancel(id) if id then killTimer(id); S.timers[id] = nil end end
+    local function cancelAll() for id in pairs(S.timers) do killTimer(id) end; S.timers = {} end
+    local function selfName() return C.selfName or tostring(C.me or C.char or ""):match("^(%S+)") or "" end
+
+    local attack, fight, stallTimer
+    attack = function(t)
+      if not S.on or S.mode ~= "fight" then return end
+      t = t or S.t
+      cancel(stallTimer)
+      S.n = S.n + 1
+      C.send(nextCmd(S, t, S.again))
+      S.again = false
+      stallTimer = after(CFG.stall, function()
+        stallTimer = nil
+        if S.mode ~= "fight" then return end
+        S.silent = S.silent + 1
+        if S.silent &gt; CFG.stallMax then C.warn(label .. ": the game has not answered " .. CFG.stallMax .. " attacks in a row"); C.loopStop("no answer"); return end
+        S.again = true; attack()
+      end)
+    end
+    fight = function() S.mode = "fight"; S.silent = 0; S.again = true; attack() end
+
+    -- ---------------------------------------------------------------- resting
+    local standTimer
+    local function endRest(why)
+      if S.mode ~= "rest" then return end
+      cancel(S.restTimer); S.restTimer = nil
+      say("rested (" .. why .. ") -- standing up")
+      S.mode = "stand"
+      C.send("stand")
+      standTimer = after(4, function() fight() end)   -- if the stand line is missed, carry on anyway
+    end
+    local function startRest(why)
+      if S.mode == "rest" then return end
+      cancel(stallTimer); cancel(S.vigTimer); S.vigTimer = nil
+      S.mode = "rest"
+      say(why .. " -- resting (back at " .. math.floor(CFG.restResume * 100) .. "% fatigue or after " .. CFG.restMax .. "s)")
+      C.send("q c"); C.send("rest")
+      S.restTimer = after(CFG.restMax, function() S.restTimer = nil; endRest("timed out") end)
+    end
+
+    -- ---------------------------------------------------------------- vigor
+    local vigorStart
+    local function vigorCmd() return "invoke vigor " .. selfName() end
+    local function vigorDone(why)
+      if S.mode ~= "vigor" then return end
+      cancel(S.vigTimer); S.vigTimer = nil
+      local seen = S.vigSeen
+      S.coolUntil = true
+      after(CFG.cool, function() S.coolUntil = false end)
+      if seen == 0 then   -- nothing cast at all
+        S.noCast = (S.noCast or 0) + 1
+        if S.noCast == 1 and supply and S.trip and (P.renew or P.renewpath) and not S.tripped then
+          say("no vigor cast -- assuming the runes are out"); S.trip("vigor would not cast"); return
+        end
+        startRest("vigor will not cast (" .. why .. ")"); return
+      end
+      S.noCast = 0
+      say("vigor done (" .. seen .. " cast" .. (seen == 1 and "" or "s") .. ") -- back to it")
+      S.mode = "settle"                  -- the last cast's "[N sec. delay]" line is still on its way; do not answer it
+      after(1.5, fight)
+    end
+    vigorStart = function()
+      if S.mode ~= "fight" or S.coolUntil then return end
+      if C.powerVigor == false then startRest("low on fatigue"); return end
+      cancel(stallTimer)
+      S.mode, S.vigSeen, S.vigRounds, S.vigWant = "vigor", 0, S.vigRounds + 1, tonumber(C.vigorCasts) or 4
+      say("low on fatigue -- " .. S.vigWant .. " x " .. vigorCmd())
+      C.send("q c")
+      if not S.unwielded then   -- spellcasting needs empty hands
+        S.unwielded = true
+        local held = dg.ctlWield and dg.ctlWield[tostring(C.char or ""):lower()]
+        local w = type(held) == "table" and dg.ctlWeaponCmd and dg.ctlWeaponCmd()   -- only when the tracker knows a weapon is in hand
+        if w then C.send(w) end
+      end
+      for _ = 1, S.vigWant do C.send(vigorCmd()) end
+      S.vigTimer = after(15 + 8 * S.vigWant, function() S.vigTimer = nil; vigorDone("timed out") end)
+    end
+
+    -- ---------------------------------------------------------------- rune renew trip
+    local function tripFail(why)
+      cancelAll()
+      C.warn(label .. ": renew trip failed (" .. why .. "); the map thinks you are in room " .. tostring(mapRoom() or "?") .. ". Stopping.")
+      C.loopStop("renew trip failed")
+    end
+    -- go(room number | "cmd;cmd;cmd" | nil, onArrive)
+    local function go(dest, arrive)
+      if type(dest) == "number" then
+        if mapRoom() == dest then after(0.5, arrive); return end
+        local ticks, seen, tries = 0, 0, 0
+        local poll, begin
+        begin = function()
+          S.tired = nil
+          say("walkto " .. dest)
+          expandAlias("walkto " .. dest)
+          ticks, seen = 0, 0
+          S.walkTimer = after(2, poll)
+        end
+        poll = function()
+          S.walkTimer = nil
+          ticks = ticks + 1
+          if mapRoom() == dest then seen = seen + 1 else seen = 0 end
+          if seen &gt;= 2 then S.onTired = nil; arrive(); return end
+          if ticks &gt; CFG.walkMax then tripFail("the walk to room " .. dest .. " did not end there"); return end
+          S.walkTimer = after(1, poll)
+        end
+        S.onTired = function()   -- too tired to walk: stop the mapper, wait, send walkto again
+          if S.tired then return end
+          S.tired = true
+          cancel(S.walkTimer); S.walkTimer = nil
+          if map and map.stopSpeedwalk then pcall(map.stopSpeedwalk) end
+          tries = tries + 1
+          if tries &gt; CFG.tiredTries then tripFail("still too tired to walk"); return end
+          say("too tired to walk -- waiting " .. CFG.tiredWait .. "s (" .. tries .. ")")
+          S.walkTimer = after(CFG.tiredWait, begin)
+        end
+        begin()
+      elseif type(dest) == "string" and dest ~= "" then
+        local cmds = {}
+        for c in dest:gmatch("[^;]+") do cmds[#cmds + 1] = c:gsub("^%s+", ""):gsub("%s+$", "") end
+        local i = 1
+        local function chunk()
+          local n = 0
+          while i &lt;= #cmds and n &lt; 4 do C.send(cmds[i]); i = i + 1; n = n + 1 end
+          if i &lt;= #cmds then after(CFG.stepGap, chunk) else after(CFG.stepGap, arrive) end
+        end
+        chunk()
+      else
+        tripFail("no room or path set -- use  powerroom renew here")
+      end
+    end
+    local function renewDone() end
+    S.trip = function(why)
+      if not supply then return end
+      if S.mode == "trip" then return end
+      local dest = P.renew or P.renewpath
+      if not dest then
+        C.warn(label .. ": out of runes (" .. why .. ") but no renewal room is set -- stand there and type  powerroom renew here")
+        startRest("out of runes")
+        return
+      end
+      local back = P.back or P.backpath or S.room0
+      if not back then C.warn(label .. ": out of runes but I do not know where to come back to -- type  powerroom back here  in the practice room"); startRest("out of runes"); return end
+      cancel(stallTimer); cancel(S.vigTimer); cancel(S.restTimer); S.vigTimer, S.restTimer = nil, nil
+      S.mode, S.tripped = "trip", true
+      say("out of runes (" .. why .. ") -- off to renew them")
+      C.send("q c")
+      go(dest, function()
+        local tries = 0
+        local function renew()
+          tries = tries + 1
+          if tries &gt; CFG.renewTries then tripFail("no 'runes have been renewed' line after " .. CFG.renewTries .. " tries"); return end
+          S.renewing = true
+          C.send("shop renew all")
+          S.renewTimer = after(CFG.renewWait, function() S.renewTimer = nil; if S.renewing then renew() end end)
+        end
+        S.renewed = function()
+          if not S.renewing then return end
+          S.renewing = false; cancel(S.renewTimer); S.renewTimer = nil
+          say("runes renewed -- heading back")
+          go(back, function() say("back -- carrying on"); S.noCast = 0; fight() end)
+        end
+        renew()
+      end)
+    end
+
+    -- ---------------------------------------------------------------- the rules
+    local rules = {
+      { "sec. delay]", function(t)
+          if S.mode ~= "fight" then return end
+          S.silent = 0; attack(t)
+        end },
+      { "you're too close",                             function(t) if S.mode == "fight" then S.again = true; attack(t) end end },
+      { "you must move closer to your opponent's rank", function(t) if S.mode == "fight" then S.again = true; attack(t) end end },
+    }
+    if supply then
+      local function low() if S.mode == "fight" then vigorStart() end end
+      local more = {
+        { "warning: current fatigue below", low },
+        { "don't have enough energy to do that", function()
+            if S.mode == "fight" then vigorStart()
+            elseif S.mode == "vigor" then cancel(S.vigTimer); S.vigTimer = nil; S.mode = "fight"; startRest("too tired to even cast vigor")
+            elseif S.mode == "trip" and S.onTired then S.onTired() end
+          end },
+        { "fatigue:", function()
+            local cur, max = (line or (getCurrentLine and getCurrentLine()) or ""):match("[Ff]atigue:%s*(%d+)%s*/%s*(%d+)")
+            cur, max = tonumber(cur), tonumber(max)
+            if not (cur and max and max &gt; 0) then return end
+            if S.mode == "rest" then
+              if cur / max &gt;= CFG.restResume then endRest(cur .. "/" .. max .. " fatigue") end
+            elseif S.mode == "fight" and cur &lt;= CFG.vigorAt then vigorStart() end
+          end },
+        { "you awaken feeling great",  function() endRest("fully rested") end },
+        { "you are fully rested",      function() endRest("fully rested") end },
+        { "you stand up",              function() if S.mode == "stand" then cancel(standTimer); fight() end end },
+        { "you are already standing",  function() if S.mode == "stand" then cancel(standTimer); fight() end end },
+        { "you must stand up first",   function() if S.mode == "fight" then S.mode = "stand"; C.send("stand"); standTimer = after(4, function() fight() end) end end },
+        { "weaving those runes", function()
+            if S.mode ~= "vigor" then return end
+            S.vigSeen = S.vigSeen + 1
+            if S.vigSeen &gt;= S.vigWant then vigorDone("all cast") end
+          end },
+        { "the runes quickly fly apart", function()   -- an interrupted cast: one more try
+            if S.mode == "vigor" and not S.extra then S.extra = true; C.send(vigorCmd()) end
+          end },
+        { "interfered with by what you have readied", function()
+            if S.mode == "vigor" then C.warn(label .. ": a readied weapon spoiled the cast -- try  unwield  first"); vigorDone("hands full") end
+          end },
+        { "you cannot have anything in your hands", function()
+            if S.mode == "vigor" then C.warn(label .. ": hands are full -- try  unwield  first"); vigorDone("hands full") end
+          end },
+        { "i don't see what you are referring to", function()
+            if S.mode == "vigor" then C.warn(label .. ": the game did not find '" .. selfName() .. "' -- set dg.ctl.selfName to the name others see"); vigorDone("no target") end
+          end },
+        { "all available runes have been renewed", function() if S.renewed then S.renewed() end end },
+      }
+      for _, r in ipairs(more) do rules[#rules + 1] = r end
+      for _, p in ipairs(C.runePatterns or RUNE_OUT) do
+        rules[#rules + 1] = { p, function() if S.mode == "fight" or S.mode == "vigor" then S.trip("game said so") end end }
+      end
+    end
+
+    return {
+      qc = true,
+      start = function(t)
+        S.t = t; S.room0 = mapRoom()
+        dg.ctlPowerNow = S
+        if supply then say("on vs " .. t .. " (vigor x" .. (tonumber(C.vigorCasts) or 4) .. " when low; renew trip " .. ((P.renew or P.renewpath) and "set" or "NOT set -- powerroom renew here") .. ")") end
+        fight()
+      end,
+      onStop = function() S.on = false; cancelAll(); if dg.ctlPowerNow == S then dg.ctlPowerNow = nil end end,
+      rules = rules,
+    }
+  end
+end
+
+local function martMoves() return (dg.ctl.martialMoves and #dg.ctl.martialMoves &gt; 0) and dg.ctl.martialMoves or { "strike", "kick" } end
+-- mart: alternate the moves.  S.again = repeat the last move (it was refused, or no answer came).
+local function nextMart(S, t, again)
+  local M = martMoves()
+  if not again or not S.mi then S.mi = (S.mi or 0) % #M + 1 end
+  return "martial " .. M[S.mi] .. " at " .. t
+end
+local function fixed(fmt) return function(S, t) return (fmt:gsub("{t}", t)) end end
+local function webCmd(S, t) return "web " .. tostring(dg.ctl.webSize or "small") .. " at " .. t end
+
+local POWER_LOOPS = {   -- loop name = { label, attack, supply }
+  mart    = { nextMart, false }, ptmart    = { nextMart, true },
+  clawk   = { fixed("claw {t}"), false },            ptclaw   = { fixed("claw {t}"), true },
+  bitek   = { fixed("bite {t}"), false },            ptbite   = { fixed("bite {t}"), true },
+  stingk  = { fixed("sting {t}"), false },           ptsting  = { fixed("sting {t}"), true },
+  breathk = { fixed("breathe fire at {t}"), false }, ptbreath = { fixed("breathe fire at {t}"), true },
+  webk    = { webCmd, false },                       ptweb    = { webCmd, true },
+}
+
 dg.ctlLoops = {
 
   ------------------------------------------------------------ generic (every character)
   killing = { qc = true, start = "k {t}",               rules = weaponRules },
   beat    = { qc = true, start = "punch {t}",           rules = beatRules   },
-  -- Martial arts (Hand clerics): mart ORC  alternates  martial strike at ORC / martial kick at ORC.
-  -- Each "[N sec. delay]" the game prints after an attack sends the next move (the game's own delay paces it).
-  -- Moves: dg.ctl.martialMoves = { "strike", "kick" }  (add the new ones as you unlock them; one move = repeat it)
-  mart = { make = function()
-    local MOVES = (dg.ctl.martialMoves and #dg.ctl.martialMoves > 0) and dg.ctl.martialMoves or { "strike", "kick" }
-    local i = 0
-    local function nextMove(t) i = i % #MOVES + 1; dg.ctl.send("martial " .. MOVES[i] .. " at " .. t) end
-    local function again(t) dg.ctl.send("martial " .. MOVES[math.max(i, 1)] .. " at " .. t) end   -- same move again
-    return {
-      qc = true,
-      start = function(t) nextMove(t) end,
-      rules = {
-        { "sec. delay]",                                  function(t) nextMove(t) end },
-        { "you're too close",                             function(t) again(t) end },
-        { "you must move closer to your opponent's rank", function(t) again(t) end },
-      },
-    }
-  end },
+  -- Martial arts and natural attacks (mart, clawk, bitek, stingk, breathk, webk, and the pt... versions) are built
+  -- by attackLoop() above and registered right after this table.
   thk     = { qc = true, start = "throw spiked at {t}", rules = weaponRules },
 
   -- First aid on yourself:  fame.  Sends  treat {me}  and sends it again every time the game
@@ -2387,6 +2802,7 @@ dg.ctlLoops = {
 }
 
 -- Katie and Kasper use the same spk list as Kressa (shared table: editing Kressa's edits theirs).
+for name, d in pairs(POWER_LOOPS) do dg.ctlLoops[name] = { make = attackLoop(name, d[1], d[2]) } end
 dg.ctlLoops.spk.by_class.katie  = dg.ctlLoops.spk.by_class.kressa
 dg.ctlLoops.spk.by_class.kasper = dg.ctlLoops.spk.by_class.kressa
 
@@ -2408,7 +2824,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.72"
+C.version = "0.73"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
