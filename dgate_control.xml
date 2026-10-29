@@ -2383,7 +2383,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.70"
+C.version = "0.71"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -3502,6 +3502,9 @@ function C.init()
     C.evHandler = registerAnonymousEventHandler("sysDisconnectionEvent", function() C.loopStop("disconnected") end)
   end
   C.say("DG Control " .. C.version .. " loaded.  aliases/triggers/keys are native now -- browse the Aliases tab.")
+  -- put the Mudlet profile name into the log (the log files themselves are named by date only)
+  local okp, prof = pcall(function() return getProfileName and getProfileName() end)
+  if okp and prof and prof ~= "" then C.say("profile: " .. tostring(prof)) end
 end
 
 function C.initSoon()
