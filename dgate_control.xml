@@ -84,6 +84,13 @@ dg.ctl.sendArg("k", matches[2])</script>
           <regex>^tonyjaa(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>gmcpdump</name>
+          <script>dg.ctlGmcpDump()</script>
+          <command />
+          <packageName />
+          <regex>^gmcpdump$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>martstyle</name>
           <script>dg.ctlMartStyle(matches[2])</script>
           <command />
@@ -1910,6 +1917,8 @@ local function stealth(kind)
 
   ---------------------------------------------------------------- wound yourself, then rest (ptsneakd)
   -- The healer is another player: just wound yourself a little (his vigor then earns favors) and rest here.
+  local fatigueSeen, armVigTick   -- ptsneakv: set below
+  local vigTick
   local function vigorCmd()
     local me = dg.ctl.selfName or (tostring(dg.ctl.me or ""):lower():match("^([^%s]+)")) or tostring(dg.ctl.char or ""):lower()
     return "invoke vigor " .. me
@@ -1923,6 +1932,7 @@ local function stealth(kind)
       dg.ctl.say(NAME .. ": vigor done (" .. S.vigSeen .. " cast" .. (S.vigSeen == 1 and "" or "s") .. ") -- back to it")
       S.hidden = false
       S.coolUntil = now() + 12   -- the prompt line may not show the new fatigue yet
+      if armVigTick then armVigTick() end
       step(1.5)
       return
     end
@@ -1981,12 +1991,19 @@ local function stealth(kind)
       -- after a renew trip the sneak loops go back to the training room (CFG.trip.back, room 11933), not to wherever the loop started
       S.back = (dg.ctlPowerBack and dg.ctlPowerBack()) or (CFG.trip.back and CFG.trip.back[1] and CFG.trip.back[1].walk) or nil
       if VIG then
+        -- fatigue from GMCP when the game sends it (see gmcpdump)
+        if registerAnonymousEventHandler then
+          S.gmcpH = registerAnonymousEventHandler("gmcp.Char", function()
+            if S.on and dg.ctlFatigue then local c, m = dg.ctlFatigue(); if c then fatigueSeen(c, m) end end
+          end)
+        end
+        if armVigTick then armVigTick() end
         dg.ctlPowerNow = { room0 = S.room0, trip = function(why) if S.on then S.outOfRunes(why) end end }
         dg.ctl.say(NAME .. ": vigor x" .. (tonumber(dg.ctl.vigorCasts) or 4) .. " at fatigue " .. CFG.vigAt .. " or less; renew trips come back to room " .. tostring(S.back or S.room0 or "UNKNOWN (powerroom back here)"))
       end
       step(0)
     end,
-    onStop = function() S.on = false; if dg.ctlPowerNow and dg.ctlPowerNow.room0 == S.room0 and VIG then dg.ctlPowerNow = nil end; S.align = nil; S.wounding = false; if woundTimer then killTimer(woundTimer); woundTimer = nil end; S.standing = false; if standTimer then killTimer(standTimer); standTimer = nil end; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
+    onStop = function() S.on = false; if S.gmcpH and killAnonymousEventHandler then killAnonymousEventHandler(S.gmcpH); S.gmcpH = nil end; if vigTick then killTimer(vigTick); vigTick = nil end; if dg.ctlPowerNow and dg.ctlPowerNow.room0 == S.room0 and VIG then dg.ctlPowerNow = nil end; S.align = nil; S.wounding = false; if woundTimer then killTimer(woundTimer); woundTimer = nil end; S.standing = false; if standTimer then killTimer(standTimer); standTimer = nil end; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
     rules = {
       -- fully rested ("You awaken feeling great. What a refreshing nap."): stop resting and stand
       { "you awaken feeling great",             function() if S.resting then endRest("fully rested") end end },
@@ -2096,6 +2113,27 @@ local function stealth(kind)
   end
 
   if WOUND or VIG then
+    -- current fatigue from the prompt line, or (ptsneakv) from GMCP
+    fatigueSeen = function(cur, max)
+      if not (cur and S.on) then return end
+      if S.resting then
+        if max and max &gt; 0 and cur / max &gt;= CFG.restResume then endRest(cur .. "/" .. max .. " fatigue") end
+      elseif cur &lt;= (VIG and CFG.vigAt or CFG.woundAt) and not (S.trip or S.align or S.wounding or S.standing) then
+        startWound()
+      end
+    end
+    -- ptsneakv: dg.ctl.vigorEvery = N seconds makes it cast vigor on a timer too (for when nothing tells us the fatigue)
+    armVigTick = function()
+      if vigTick then killTimer(vigTick); vigTick = nil end
+      local e = tonumber(dg.ctl.vigorEvery)
+      if VIG and e and e &gt; 0 and S.on then
+        vigTick = tempTimer(e, function()
+          vigTick = nil
+          if S.on and not (S.trip or S.resting or S.wounding or S.standing or S.align) then S.coolUntil = nil; startWound() end
+          armVigTick()
+        end)
+      end
+    end
     local more = {
       { "weaving those runes", function()
           if not S.wounding then return end
@@ -2113,13 +2151,7 @@ local function stealth(kind)
       -- as fatigue reaches single digits (shadow slinking drains about 1 FP per 5 seconds; the dart needs 3)
       { "fatigue:", function()
           local cur, max = (line or (getCurrentLine and getCurrentLine()) or ""):match("[Ff]atigue:%s*(%d+)%s*/%s*(%d+)")
-          cur, max = tonumber(cur), tonumber(max)
-          if not (cur and max and max &gt; 0 and S.on) then return end
-          if S.resting then
-            if cur / max &gt;= CFG.restResume then endRest(cur .. "/" .. max .. " fatigue") end
-          elseif cur &lt;= (VIG and CFG.vigAt or CFG.woundAt) and not (S.trip or S.align or S.wounding or S.standing) then
-            startWound()
-          end
+          fatigueSeen(tonumber(cur), tonumber(max))
         end },
       { "i don't see what you are referring to", function()
           if S.wounding then dg.ctl.warn(NAME .. ": the game did not find '" .. tostring(VIG and vigorCmd() or woundCmd()) .. "' -- set dg.ctl.selfName to the name others see"); woundDone("no target", true) end
@@ -2488,6 +2520,51 @@ dg.ctlRenewSteps = function()
                                 { walk = 174 }, { cmd = "go door" }, { walk = "back" } }
 end
 dg.ctlPowerBack = function() powerLoad(); return dg.ctlPower.back end
+-- Fatigue from GMCP, if the game sends it (Char.Vitals or similar): returns current, max (either may be nil).
+-- gmcpdump prints everything under gmcp.Char so we can see what is really there.
+dg.ctlFatigue = function()
+  local g = gmcp and gmcp.Char
+  if type(g) ~= "table" then return nil end
+  local cur, max
+  local function isFat(k) return k:match("fatigue") or k:match("^fp") or k:match("stamina") or k:match("energy") or k:match("endurance") end
+  local function scan(t, depth)
+    for k, v in pairs(t) do
+      local key = tostring(k):lower()
+      if type(v) == "table" then
+        if depth &lt; 3 then scan(v, depth + 1) end
+      elseif isFat(key) or key:match("^maxfp") or key:match("^fpmax") then
+        local n = tonumber(v)
+        if n then
+          if key:match("max") then max = max or n else cur = cur or n end
+        end
+      end
+    end
+  end
+  scan(g, 1)
+  return cur, max
+end
+dg.ctlGmcpDump = function()
+  local out, n = {}, 0
+  local function dump(t, prefix, depth)
+    local keys = {}
+    for k in pairs(t) do keys[#keys + 1] = tostring(k) end
+    table.sort(keys)
+    for _, k in ipairs(keys) do
+      local v = t[k]; if v == nil then v = t[tonumber(k)] end
+      if type(v) == "table" then
+        if depth &lt; 4 then dump(v, prefix .. k .. ".", depth + 1) end
+      else
+        n = n + 1; out[#out + 1] = prefix .. k .. " = " .. tostring(v)
+      end
+    end
+  end
+  if type(gmcp) == "table" and type(gmcp.Char) == "table" then dump(gmcp.Char, "gmcp.Char.", 1) end
+  dg.ctl.say("gmcpdump: " .. (n == 0 and "nothing under gmcp.Char (try  terminal gmcp on )" or (n .. " values")))
+  for _, l in ipairs(out) do decho("&lt;170,170,170&gt;  " .. l .. "\n") end
+  local c, m = dg.ctlFatigue()
+  dg.ctl.say("gmcpdump: fatigue found = " .. tostring(c) .. " / " .. tostring(m))
+end
+
 
 -- one factory for all of them.  nextCmd(state, target) -&gt; the attack command to send;  supply = vigor + renew trip.
 local function attackLoop(label, nextCmd, supply)
@@ -2572,6 +2649,7 @@ local function attackLoop(label, nextCmd, supply)
       end
       S.noCast = 0
       say("vigor done (" .. seen .. " cast" .. (seen == 1 and "" or "s") .. ") -- back to it")
+      if S.armTick then S.armTick() end
       S.mode = "settle"                  -- the last cast's "[N sec. delay]" line is still on its way; do not answer it
       after(1.5, fight)
     end
@@ -2668,6 +2746,20 @@ local function attackLoop(label, nextCmd, supply)
     end
 
     -- ---------------------------------------------------------------- the rules
+    S.fatSeen = function(cur, max)   -- from the prompt line or GMCP
+      if not cur then return end
+      if S.mode == "rest" then
+        if max and max &gt; 0 and cur / max &gt;= CFG.restResume then endRest(cur .. "/" .. max .. " fatigue") end
+      elseif S.mode == "fight" and cur &lt;= CFG.vigorAt then vigorStart() end
+    end
+    local function armTick()   -- dg.ctl.vigorEvery = N seconds: also cast vigor on a timer
+      cancel(S.vigTick); S.vigTick = nil
+      local e = tonumber(C.vigorEvery)
+      if supply and e and e &gt; 0 then
+        S.vigTick = after(e, function() S.vigTick = nil; if S.mode == "fight" then S.coolUntil = false; vigorStart() end; armTick() end)
+      end
+    end
+    S.armTick = armTick
     local rules = {
       { "sec. delay]", function(t)
           if S.mode ~= "fight" then return end
@@ -2687,11 +2779,7 @@ local function attackLoop(label, nextCmd, supply)
           end },
         { "fatigue:", function()
             local cur, max = (line or (getCurrentLine and getCurrentLine()) or ""):match("[Ff]atigue:%s*(%d+)%s*/%s*(%d+)")
-            cur, max = tonumber(cur), tonumber(max)
-            if not (cur and max and max &gt; 0) then return end
-            if S.mode == "rest" then
-              if cur / max &gt;= CFG.restResume then endRest(cur .. "/" .. max .. " fatigue") end
-            elseif S.mode == "fight" and cur &lt;= CFG.vigorAt then vigorStart() end
+            S.fatSeen(tonumber(cur), tonumber(max))
           end },
         { "you awaken feeling great",  function() endRest("fully rested") end },
         { "you are fully rested",      function() endRest("fully rested") end },
@@ -2728,13 +2816,19 @@ local function attackLoop(label, nextCmd, supply)
       start = function(t)
         S.t = t; S.room0 = mapRoom()
         dg.ctlPowerNow = S
+        if supply and registerAnonymousEventHandler then
+          S.gmcpH = registerAnonymousEventHandler("gmcp.Char", function()
+            if S.on and dg.ctlFatigue then local c, m = dg.ctlFatigue(); if c then S.fatSeen(c, m) end end
+          end)
+        end
+        armTick()
         if supply then
           say("on vs " .. t .. " (vigor x" .. (tonumber(C.vigorCasts) or 4) .. " when low; practice room " .. tostring(P.back or S.room0 or "UNKNOWN") .. ")")
           if not (P.back or S.room0) then C.warn(label .. ": the mapper does not know which room this is -- a renew trip would not know where to come back to (powerroom back here)") end
         end
         fight()
       end,
-      onStop = function() S.on = false; cancelAll(); if dg.ctlPowerNow == S then dg.ctlPowerNow = nil end end,
+      onStop = function() S.on = false; cancelAll(); if S.gmcpH and killAnonymousEventHandler then killAnonymousEventHandler(S.gmcpH); S.gmcpH = nil end; if dg.ctlPowerNow == S then dg.ctlPowerNow = nil end end,
       rules = rules,
     }
   end
@@ -3006,7 +3100,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.78"
+C.version = "0.79"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
