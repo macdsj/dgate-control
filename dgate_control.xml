@@ -1493,6 +1493,8 @@ end
 -- dg.ctlData.weaponForm = "noun" (default: "rem dagger") or "full" ("rem short simple dagger").
 local function weaponCmd()
   local who = tostring(dg.ctl.char or ""):lower()
+  local V = gmcp and gmcp.Char and gmcp.Char.Vitals       -- the game's own flag: gmcp.Char.Vitals.weapon_readied
+  if V and V.weapon_readied == false then return nil end
   local seen = dg.ctlWield and dg.ctlWield[who]
   if seen == false then return nil end                    -- we saw it put away: nothing to remove
   if seen then
@@ -1993,7 +1995,7 @@ local function stealth(kind)
       if VIG then
         -- fatigue from GMCP when the game sends it (see gmcpdump)
         if registerAnonymousEventHandler then
-          S.gmcpH = registerAnonymousEventHandler("gmcp.Char", function()
+          S.gmcpH = registerAnonymousEventHandler("gmcp.Char.Vitals", function()
             if S.on and dg.ctlFatigue then local c, m = dg.ctlFatigue(); if c then fatigueSeen(c, m) end end
           end)
         end
@@ -2663,7 +2665,9 @@ local function attackLoop(label, nextCmd, supply)
       if not S.unwielded then   -- spellcasting needs empty hands
         S.unwielded = true
         local held = dg.ctlWield and dg.ctlWield[tostring(C.char or ""):lower()]
-        local w = type(held) == "table" and dg.ctlWeaponCmd and dg.ctlWeaponCmd()   -- only when the tracker knows a weapon is in hand
+        local V = gmcp and gmcp.Char and gmcp.Char.Vitals
+        local inHand = (V and V.weapon_readied ~= nil) and V.weapon_readied or (type(held) == "table")   -- GMCP knows; else the tracker
+        local w = inHand and dg.ctlWeaponCmd and dg.ctlWeaponCmd()
         if w then C.send(w) end
       end
       for _ = 1, S.vigWant do C.send(vigorCmd()) end
@@ -2817,7 +2821,7 @@ local function attackLoop(label, nextCmd, supply)
         S.t = t; S.room0 = mapRoom()
         dg.ctlPowerNow = S
         if supply and registerAnonymousEventHandler then
-          S.gmcpH = registerAnonymousEventHandler("gmcp.Char", function()
+          S.gmcpH = registerAnonymousEventHandler("gmcp.Char.Vitals", function()
             if S.on and dg.ctlFatigue then local c, m = dg.ctlFatigue(); if c then S.fatSeen(c, m) end end
           end)
         end
@@ -3100,7 +3104,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.79"
+C.version = "0.80"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
