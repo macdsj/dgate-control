@@ -56,6 +56,41 @@ dg.ctl.sendArg("k", matches[2])</script>
           <regex>^mart(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>ipman</name>
+          <script>dg.ctl.loopStart("ipman", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ipman(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>kicker</name>
+          <script>dg.ctl.loopStart("kicker", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^kicker(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>muaythai</name>
+          <script>dg.ctl.loopStart("muaythai", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^muaythai(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>tonyjaa</name>
+          <script>dg.ctl.loopStart("tonyjaa", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^tonyjaa(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>martstyle</name>
+          <script>dg.ctlMartStyle(matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^martstyle(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>clawk</name>
           <script>dg.ctl.loopStart("clawk", matches[2])</script>
           <command />
@@ -1943,10 +1978,11 @@ local function stealth(kind)
     qc = true,
     start = function()
       S.room0 = mapRoom()
-      S.back = dg.ctlPowerBack and dg.ctlPowerBack() or nil
+      -- after a renew trip the sneak loops go back to the training room (CFG.trip.back, room 11933), not to wherever the loop started
+      S.back = (dg.ctlPowerBack and dg.ctlPowerBack()) or (CFG.trip.back and CFG.trip.back[1] and CFG.trip.back[1].walk) or nil
       if VIG then
         dg.ctlPowerNow = { room0 = S.room0, trip = function(why) if S.on then S.outOfRunes(why) end end }
-        dg.ctl.say(NAME .. ": vigor x" .. (tonumber(dg.ctl.vigorCasts) or 4) .. " at fatigue " .. CFG.vigAt .. " or less; practice room " .. tostring(S.back or S.room0 or "UNKNOWN (powerroom back here)"))
+        dg.ctl.say(NAME .. ": vigor x" .. (tonumber(dg.ctl.vigorCasts) or 4) .. " at fatigue " .. CFG.vigAt .. " or less; renew trips come back to room " .. tostring(S.back or S.room0 or "UNKNOWN (powerroom back here)"))
       end
       step(0)
     end,
@@ -2414,13 +2450,15 @@ local function powerLoad()
   end
 end
 local function powerSave()
-  if table.save then pcall(table.save, powerFile(), { back = dg.ctlPower.back }) end
+  if table.save then pcall(table.save, powerFile(), { back = dg.ctlPower.back, style = dg.ctlPower.style, known = dg.ctlPower.known }) end
 end
 local function mapRoom()
   local r = getPlayerRoom and getPlayerRoom()
   if not r or r &lt; 0 then r = map and map.currentRoom end
   return tonumber(r)
 end
+
+dg.ctlPowerLoad, dg.ctlPowerSave = powerLoad, powerSave
 
 dg.ctlPowerRoom = function(arg)
   powerLoad()
@@ -2702,18 +2740,73 @@ local function attackLoop(label, nextCmd, supply)
   end
 end
 
-local function martMoves() return (dg.ctl.martialMoves and #dg.ctl.martialMoves &gt; 0) and dg.ctl.martialMoves or { "backkick" } end
--- mart: alternate the moves.  S.again = repeat the last move (it was refused, or no answer came).
-local function nextMart(S, t, again)
-  local M = martMoves()
-  if not again or not S.mi then S.mi = (S.mi or 0) % #M + 1 end
-  return "martial " .. M[S.mi] .. " at " .. t
+-- Martial arts styles.  mart / ptmart use the style set with  martstyle NAME  (default: backkick only); ipman, kicker, muaythai
+-- and tonyjaa run mart in that style directly.  A style is a list of moves to try, in the order they are rotated; only the
+-- ones you have unlocked are used, which the game tells us in  info martial  (type it once; it is remembered).
+-- Move names are guesses until you unlock them -- edit dg.ctlMartStyles (or set dg.ctl.martialMoves = {...} to force a list).
+dg.ctlMartStyles = dg.ctlMartStyles or {
+  default  = { "backkick" },
+  ipman    = { "strike", "punch", "combo", "powerpunch", "quickpunch", "palm" },
+  kicker   = { "backkick", "kick", "hookkick", "spinkick", "jumpkick", "flyingkick", "dropkick" },
+  muaythai = { "elbow", "knee", "kneestrike", "elbowstrike", "headbutt" },
+}
+dg.ctlMartStyles.tonyjaa = dg.ctlMartStyles.tonyjaa or dg.ctlMartStyles.muaythai
+local warned = {}
+local function martMoves(style)
+  if dg.ctl.martialMoves and #dg.ctl.martialMoves &gt; 0 then return dg.ctl.martialMoves end
+  powerLoad()
+  style = style or dg.ctlPower.style or "default"
+  local cand = dg.ctlMartStyles[style] or dg.ctlMartStyles.default
+  if style == "default" then return cand end
+  local known, out = dg.ctlPower.known, {}
+  if known and next(known) then
+    for _, m in ipairs(cand) do if known[m] then out[#out + 1] = m end end
+  end
+  if #out == 0 then
+    if not warned[style] then
+      warned[style] = true
+      dg.ctl.warn("martial style '" .. style .. "': none of its moves are known to be unlocked yet (type  info martial  once) -- using backkick")
+    end
+    return dg.ctlMartStyles.default
+  end
+  return out
+end
+dg.ctlMartStyle = function(arg)
+  powerLoad()
+  arg = tostring(arg or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+  if arg == "" then
+    local names = {}
+    for k in pairs(dg.ctlMartStyles) do names[#names + 1] = k end
+    table.sort(names)
+    local kn = {}
+    for k in pairs(dg.ctlPower.known or {}) do kn[#kn + 1] = k end
+    table.sort(kn)
+    dg.ctl.say("martstyle: " .. (dg.ctlPower.style or "default") .. "  (styles: " .. table.concat(names, ", ") .. ")  moves now: " ..
+               table.concat(martMoves(), ", ") .. "   unlocked: " .. (#kn &gt; 0 and table.concat(kn, ", ") or "unknown -- type  info martial"))
+  elseif dg.ctlMartStyles[arg] then
+    dg.ctlPower.style = (arg ~= "default") and arg or nil
+    powerSave()
+    warned = {}
+    dg.ctl.say("martstyle: " .. arg .. "  moves now: " .. table.concat(martMoves(), ", "))
+  else
+    dg.ctl.warn("martstyle: no style called '" .. arg .. "'")
+  end
+end
+-- mart: rotate through the style's moves.  S.again = repeat the last move (it was refused, or no answer came).
+local function martCmd(style)
+  return function(S, t, again)
+    S.moves = S.moves or martMoves(style)
+    if not again or not S.mi then S.mi = (S.mi or 0) % #S.moves + 1 end
+    return "martial " .. S.moves[S.mi] .. " at " .. t
+  end
 end
 local function fixed(fmt) return function(S, t) return (fmt:gsub("{t}", t)) end end
 local function webCmd(S, t) return "web " .. tostring(dg.ctl.webSize or "small") .. " at " .. t end
 
 local POWER_LOOPS = {   -- loop name = { label, attack, supply }
-  mart    = { nextMart, false }, ptmart    = { nextMart, true },
+  mart    = { martCmd(), false }, ptmart    = { martCmd(), true },
+  ipman   = { martCmd("ipman"), false },  kicker = { martCmd("kicker"), false },
+  muaythai = { martCmd("muaythai"), false }, tonyjaa = { martCmd("muaythai"), false },
   clawk   = { fixed("claw {t}"), false },            ptclaw   = { fixed("claw {t}"), true },
   bitek   = { fixed("bite {t}"), false },            ptbite   = { fixed("bite {t}"), true },
   stingk  = { fixed("sting {t}"), false },           ptsting  = { fixed("sting {t}"), true },
@@ -2913,7 +3006,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.77"
+C.version = "0.78"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -3967,6 +4060,19 @@ function C.init()
     if name == "" then return end
     dg.ctlWield = dg.ctlWield or {}
     dg.ctlWield[wieldKey()] = { name = name, noun = itemNoun(name) }
+  end)
+  -- "info martial" prints a two-column table (BACKKICK  Back Kick   STRIKE  Hand Strike): remember which moves are unlocked
+  C.trig("sys", "^\\s+Maneuver\\s+Description", function()
+    if dg.ctlPowerLoad then dg.ctlPowerLoad() end
+    dg.ctlPower = dg.ctlPower or {}
+    dg.ctlPower.known = {}
+  end)
+  C.trig("sys", "^\\s+[A-Z]{3,}\\s{2,}[A-Z][a-z]", function()
+    if dg.ctlPowerLoad then dg.ctlPowerLoad() end
+    dg.ctlPower = dg.ctlPower or {}
+    dg.ctlPower.known = dg.ctlPower.known or {}
+    for name in curLine():gmatch("([A-Z][A-Z]+)%s%s+[A-Z][a-z]") do dg.ctlPower.known[name:lower()] = true end
+    if dg.ctlPowerSave then dg.ctlPowerSave() end
   end)
   C.trig("sys", "^You return your (.+?)\\.\\s*$", function()
     local name = trim(matches[2] or ""):lower()
