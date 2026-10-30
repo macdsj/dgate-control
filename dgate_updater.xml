@@ -43,7 +43,7 @@ U.owner    = "macdsj"
 U.codeRepo = "dgate-control"      -- public: the control package
 U.hlRepo   = "dgate-highlights"   -- private (optional): dg_highlights.lua, needs dg_token.txt
 U.branch   = "main"
-U.version  = "1.2"                -- this updater's own version (UPDATER_VERSION in the repo)
+U.version  = "1.3"                -- this updater's own version (UPDATER_VERSION in the repo)
 
 local function say(m)  decho("\n&lt;255,255,85&gt;[dgupdate]&lt;reset&gt; " .. m .. "\n") end
 local function warn(m) decho("\n&lt;255,85,85&gt;[dgupdate]&lt;reset&gt; " .. m .. "\n") end
@@ -74,6 +74,20 @@ U.pending = U.pending or {}
 local function get(url, headers, cb)
   U.pending[url] = cb
   getHTTP(url, headers or {})
+end
+
+-- GitHub's raw file host can hand back an old copy for up to ~5 minutes after a push (it can ignore the ?cb=).
+-- The API copy is only about a minute behind, so ask it first and fall back to the raw host.
+local function apiUrl(repo, file)
+  return string.format("https://api.github.com/repos/%s/%s/contents/%s?ref=%s&amp;t=%d", U.owner, repo, file, U.branch, os.time())
+end
+local function isVer(b) return tostring(b):match("^%s*%d[%d%.]*%s*$") ~= nil end
+local function isPkg(b) return tostring(b):find("&lt;MudletPackage", 1, true) ~= nil end
+local function fetchRaw(repo, file, valid, cb)
+  get(apiUrl(repo, file), { Accept = "application/vnd.github.raw" }, function(ok, body)
+    if ok and valid(body) then cb(true, body); return end
+    get(rawUrl(repo, file), nil, cb)
+  end)
 end
 
 local function finish(a, b, ok)
@@ -127,11 +141,11 @@ end
 
 -- the updater updates itself first, then asks you to run dgupdate again
 local function updateSelf(dir, cb)
-  get(rawUrl(U.codeRepo, "UPDATER_VERSION"), nil, function(ok, body)
+  fetchRaw(U.codeRepo, "UPDATER_VERSION", isVer, function(ok, body)
     local remote = ok and tostring(body):match("%d[%d%.]*")
     if not remote or remote == U.version then cb(); return end
     say("updating the updater itself: " .. U.version .. " -&gt; " .. remote)
-    get(rawUrl(U.codeRepo, "dgate_updater.xml"), nil, function(ok2, xml)
+    fetchRaw(U.codeRepo, "dgate_updater.xml", isPkg, function(ok2, xml)
       if not ok2 or not tostring(xml):find("&lt;MudletPackage", 1, true) then
         warn("the updater download failed; carrying on with the current one."); cb(); return
       end
@@ -154,7 +168,7 @@ function U.update(force)
 end
 
 function U.updateControl(dir, force)
-  get(rawUrl(U.codeRepo, "VERSION"), nil, function(ok, body)
+  fetchRaw(U.codeRepo, "VERSION", isVer, function(ok, body)
     if not ok then warn("could not reach GitHub (" .. tostring(body) .. "). Nothing was changed."); return end
     local remote = tostring(body):match("%d[%d%.]*")
     local mine = dg.ctl and dg.ctl.version
@@ -178,7 +192,7 @@ function U.updateControl(dir, force)
       return
     end
     say("updating the control package: " .. tostring(mine) .. " -&gt; " .. tostring(remote))
-    get(rawUrl(U.codeRepo, "dgate_control.xml"), nil, function(ok2, xml)
+    fetchRaw(U.codeRepo, "dgate_control.xml", isPkg, function(ok2, xml)
       if not ok2 or not tostring(xml):find("&lt;MudletPackage", 1, true) then
         warn("the package download failed or was not a package. Nothing was changed."); return
       end
