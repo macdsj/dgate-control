@@ -305,6 +305,13 @@ dg.ctl.loopStart("healer", "")</script>
           <regex>^ptsneakd$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>ptsneakv</name>
+          <script>dg.ctl.loopStart("ptsneakv", "")</script>
+          <command />
+          <packageName />
+          <regex>^ptsneakv$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>ptsneakb</name>
           <script>dg.ctl.loopStart("ptsneakb", "")</script>
           <command />
@@ -1504,9 +1511,10 @@ end
 local function stealth(kind)
   local FOLLOW = (kind == "follow")               -- ptsneakf: when tired, line up with the healer's rank, then rest
   local WOUND = (kind == "wound")                 -- ptsneakd: when tired, cast a dart at yourself, then rest where you stand
-  local BASIC = (kind == "basic") or FOLLOW or WOUND   -- ptsneakb/f/d: sneak training with no healer or training trips (rests when tired)
+  local VIG = (kind == "vig")                     -- ptsneakv: when tired, vigor yourself (dg.ctl.vigorCasts times) and carry on; renews runes when they run out
+  local BASIC = (kind == "basic") or FOLLOW or WOUND or VIG   -- ptsneakb/f/d/v: sneak training with no healer or training trips (rests when tired)
   local SNEAK = (kind == "sneak") or BASIC
-  local NAME  = WOUND and "ptsneakd" or (FOLLOW and "ptsneakf" or (BASIC and "ptsneakb" or (SNEAK and "ptsneak" or "pthide")))
+  local NAME  = VIG and "ptsneakv" or WOUND and "ptsneakd" or (FOLLOW and "ptsneakf" or (BASIC and "ptsneakb" or (SNEAK and "ptsneak" or "pthide")))
   local HEALER = tostring(dg.ctl.healerName or "Fropwaffle"):lower()
   local SLINK_CHARS = { kressa = true, katie = true, kasper = true }   -- who keeps shadow slinking up (ptsneak only)
   local CFG = {
@@ -1557,12 +1565,14 @@ local function stealth(kind)
     woundWait = 10,   -- ptsneakd: seconds to wait for the self-dart before resting anyway
     woundAt   = 9,    -- ptsneakd: cast the self-dart once fatigue (from the prompt line) is this low or lower
     basicWait = 8,    -- ptsneakb: seconds to wait and try again when the game says you are too tired
+    vigAt     = tonumber(dg.ctl.vigorAt) or 8,   -- ptsneakv: vigor once fatigue (prompt line) is this low or lower (a cast costs 3)
+    renewFirst = 10, renewQuiet = 6, renewMax = 120,   -- ptsneakv renew trip: wait for the first "renewed" line, then until 6s pass without one
   }
   local S = { on = true, hidden = false, mode = "adv", retLeft = 0, clear = false,
               useSlink = SNEAK and SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] == true,
               slink = false, casting = false, castSeen = false, casts = 0, fizzles = 0, warned = false,
               busyUntil = 0,
-              resting = false, trip = nil, trainPending = false }
+              resting = false, trip = nil, trainPending = false, vigSeen = 0, vigWant = 4 }
   local timer, watchdog, restTimer
 
   local function now() return (getEpoch and getEpoch()) or os.time() end
@@ -1697,7 +1707,7 @@ local function stealth(kind)
     if not st then
       tripCleanup()
       S.trip = nil
-      dg.ctl.say(NAME .. ": back from the " .. (T.name == "train" and "training room" or "healer") .. ", carrying on")
+      dg.ctl.say(NAME .. ": back from the " .. (T.name == "train" and "training room" or (T.name == "renew" and "rune renewal" or "healer")) .. ", carrying on")
       S.hidden = false
       step(1.5)
       return
@@ -1716,20 +1726,22 @@ local function stealth(kind)
     elseif st.walk then
       -- send your own  walkto  command, then watch the mapper until it says we are there.
       -- If the game says we are too tired to move, stop the mapper's walk, wait, and send it again.
-      if mapRoom() == st.walk then after(0.5); return end
+      local want = (st.walk == "back") and (S.back or S.room0) or st.walk   -- "back" = the room the loop was started in
+      if not want then tripAbort("do not know which room to walk back to (the mapper had no room when the loop started)"); return end
+      if mapRoom() == want then after(0.5); return end
       local t0, seen, tries = now(), 0, 0
       local poll
       local function begin()
-        dg.ctl.say(NAME .. ": walkto " .. st.walk)
-        expandAlias("walkto " .. st.walk)
+        dg.ctl.say(NAME .. ": walkto " .. want)
+        expandAlias("walkto " .. want)
         t0, seen = now(), 0
         T.timer = tempTimer(2, poll)
       end
       poll = function()
         T.timer = nil
-        if mapRoom() == st.walk then seen = seen + 1 else seen = 0 end
+        if mapRoom() == want then seen = seen + 1 else seen = 0 end
         if seen &gt;= 2 then T.onNoEnergy = nil; tripNext(i + 1); return end   -- there, and still there a second later
-        if now() - t0 &gt; CFG.trip.walkMax then tripAbort("the walk to room " .. st.walk .. " did not end there"); return end
+        if now() - t0 &gt; CFG.trip.walkMax then tripAbort("the walk to room " .. want .. " did not end there"); return end
         T.timer = tempTimer(1, poll)
       end
       T.onNoEnergy = function()
@@ -1743,6 +1755,29 @@ local function stealth(kind)
         T.timer = tempTimer(CFG.trip.energyWait, function() T.timer = nil; T.waiting = false; begin() end)
       end
       begin()
+
+    elseif st.alias then
+      -- an alias that renews runes: it prints a "renewed" line per rune; done when those stop coming
+      dg.ctl.say(NAME .. ": " .. st.alias)
+      expandAlias(st.alias)
+      T.renewing, T.sawRenew = true, false
+      local function finish()
+        T.renewing, T.renewBump = false, nil
+        if T.guard then killTimer(T.guard); T.guard = nil end
+        if T.timer then killTimer(T.timer); T.timer = nil end
+        tripNext(i + 1)
+      end
+      T.renewBump = function()
+        T.sawRenew = true
+        if T.timer then killTimer(T.timer) end
+        T.timer = tempTimer(CFG.renewQuiet, function() T.timer = nil; finish() end)
+      end
+      T.timer = tempTimer(CFG.renewFirst, function()
+        T.timer = nil
+        if not T.sawRenew then dg.ctl.warn(NAME .. ": no 'renewed' line after " .. st.alias .. " -- carrying on anyway") end
+        finish()
+      end)
+      T.guard = tempTimer(CFG.renewMax, finish)
 
     elseif st.heal then
       T.healTries = 0
@@ -1766,6 +1801,8 @@ local function stealth(kind)
     local steps = {}
     if kind == "train" then
       for _, s in ipairs(CFG.train.steps) do steps[#steps + 1] = s end
+    elseif kind == "renew" then
+      for _, s in ipairs(dg.ctlRenewSteps()) do steps[#steps + 1] = s end
     else
       for _, s in ipairs(CFG.trip.out)  do steps[#steps + 1] = s end
       steps[#steps + 1] = { heal = true }
@@ -1774,7 +1811,7 @@ local function stealth(kind)
     S.trip = { steps = steps, name = kind }
     S.casting, S.castSeen, S.hidden = false, false, false
     timersOff()
-    dg.ctl.say(NAME .. (kind == "train" and ": a skill is ready -- off to the training room" or ": out of fatigue -- off to the healer"))
+    dg.ctl.say(NAME .. (kind == "train" and ": a skill is ready -- off to the training room" or (kind == "renew" and ": out of runes -- off to renew them" or ": out of fatigue -- off to the healer")))
     dg.ctl.send("q c")
     tripNext(1)
   end
@@ -1838,34 +1875,48 @@ local function stealth(kind)
 
   ---------------------------------------------------------------- wound yourself, then rest (ptsneakd)
   -- The healer is another player: just wound yourself a little (his vigor then earns favors) and rest here.
-  local function woundDone(why)
+  local function vigorCmd()
+    local me = dg.ctl.selfName or (tostring(dg.ctl.me or ""):lower():match("^([^%s]+)")) or tostring(dg.ctl.char or ""):lower()
+    return "invoke vigor " .. me
+  end
+  -- fail = true: the cast did not work (too tired, no target, hands full): rest instead of carrying on (ptsneakv)
+  local function woundDone(why, fail)
     if woundTimer then killTimer(woundTimer); woundTimer = nil end
     if not S.wounding then return end
     S.wounding = false
+    if VIG and not fail and S.vigSeen &gt; 0 then
+      dg.ctl.say(NAME .. ": vigor done (" .. S.vigSeen .. " cast" .. (S.vigSeen == 1 and "" or "s") .. ") -- back to it")
+      S.hidden = false
+      S.coolUntil = now() + 12   -- the prompt line may not show the new fatigue yet
+      step(1.5)
+      return
+    end
     if why then dg.ctl.say(NAME .. ": " .. why .. " -- resting") end
     startRest()
   end
   local function startWound()
     if S.wounding or S.resting or not S.on then return end
-    local cmd = woundCmd()
+    if VIG and S.coolUntil and now() &lt; S.coolUntil then return end
+    local cmd = VIG and vigorCmd() or woundCmd()
     if not cmd then startRest(); return end
     S.wounding, S.casting, S.castSeen, S.hidden = true, false, false, false
+    S.vigSeen, S.vigWant = 0, VIG and (tonumber(dg.ctl.vigorCasts) or 4) or 1
     timersOff()
-    dg.ctl.say(NAME .. ": out of fatigue -- wounding myself slightly first (" .. cmd .. ")")
+    dg.ctl.say(NAME .. (VIG and (": low on fatigue -- " .. S.vigWant .. " x " .. cmd) or (": out of fatigue -- wounding myself slightly first (" .. cmd .. ")")))
     dg.ctl.send("q c")
     if not S.unwielded then   -- spellcasting needs empty hands
       S.unwielded = true
       local w = weaponCmd()
       if w then dg.ctl.send(w) end
     end
-    dg.ctl.send(cmd)
-    woundTimer = tempTimer(CFG.woundWait, function() woundTimer = nil; if S.on and S.wounding then woundDone("no cast seen") end end)
+    for _ = 1, S.vigWant do dg.ctl.send(cmd) end
+    woundTimer = tempTimer(VIG and (15 + 8 * S.vigWant) or CFG.woundWait, function() woundTimer = nil; if S.on and S.wounding then woundDone("no cast seen") end end)
   end
 
   -- Out of fatigue: the healer trip when we are in the practice room and the mapper can walk, else rest.
   local function exhausted()
     if S.resting or S.trip or S.align or S.wounding or not S.on then return end
-    if WOUND then startWound(); return end
+    if WOUND or VIG then startWound(); return end
     if FOLLOW then startAlign(); return end
     if BASIC then startRest(); return end   -- ptsneakb: no heal trip, just rest and let the pocket healer work
     local TR = CFG.trip
@@ -1890,8 +1941,16 @@ local function stealth(kind)
   local def = {
     target = false,
     qc = true,
-    start = function() step(0) end,
-    onStop = function() S.on = false; S.align = nil; S.wounding = false; if woundTimer then killTimer(woundTimer); woundTimer = nil end; S.standing = false; if standTimer then killTimer(standTimer); standTimer = nil end; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
+    start = function()
+      S.room0 = mapRoom()
+      S.back = dg.ctlPowerBack and dg.ctlPowerBack() or nil
+      if VIG then
+        dg.ctlPowerNow = { room0 = S.room0, trip = function(why) if S.on then S.outOfRunes(why) end end }
+        dg.ctl.say(NAME .. ": vigor x" .. (tonumber(dg.ctl.vigorCasts) or 4) .. " at fatigue " .. CFG.vigAt .. " or less; practice room " .. tostring(S.back or S.room0 or "UNKNOWN (powerroom back here)"))
+      end
+      step(0)
+    end,
+    onStop = function() S.on = false; if dg.ctlPowerNow and dg.ctlPowerNow.room0 == S.room0 and VIG then dg.ctlPowerNow = nil end; S.align = nil; S.wounding = false; if woundTimer then killTimer(woundTimer); woundTimer = nil end; S.standing = false; if standTimer then killTimer(standTimer); standTimer = nil end; timersOff(); tripCleanup(); S.trip = nil; if restTimer then killTimer(restTimer); restTimer = nil end end,
     rules = {
       -- fully rested ("You awaken feeling great. What a refreshing nap."): stop resting and stand
       { "you awaken feeling great",             function() if S.resting then endRest("fully rested") end end },
@@ -1914,7 +1973,7 @@ local function stealth(kind)
       -- worn out: rest (the game says one of these when fatigue is gone)
       { "warning: current fatigue below",       exhausted },
       { "don't have enough energy to do that",  function()
-          if S.wounding then woundDone("too tired to cast"); return end
+          if S.wounding then woundDone("too tired to cast", true); return end
           if S.align then alignDone("too tired to move -- resting here")
           elseif S.trip then
             if S.trip.onNoEnergy then S.trip.onNoEnergy() end   -- mid-walk: wait and walk again
@@ -2000,9 +2059,20 @@ local function stealth(kind)
     for _, r in ipairs(more) do def.rules[#def.rules + 1] = r end
   end
 
-  if WOUND then
+  if WOUND or VIG then
     local more = {
-      { "weaving those runes", function() if S.wounding then woundDone("self-dart cast") end end },
+      { "weaving those runes", function()
+          if not S.wounding then return end
+          if VIG then
+            S.vigSeen = S.vigSeen + 1
+            if S.vigSeen &gt;= S.vigWant then woundDone("vigor cast") end
+          else
+            woundDone("self-dart cast")
+          end
+        end },
+      { "the runes quickly fly apart", function()   -- an interrupted vigor: one more try
+          if VIG and S.wounding and not S.extra then S.extra = true; dg.ctl.send(vigorCmd()) end
+        end },
       -- the prompt line "[Health: 157/157 - Fatigue: 75/75] ..." comes after every command: act on it as soon
       -- as fatigue reaches single digits (shadow slinking drains about 1 FP per 5 seconds; the dart needs 3)
       { "fatigue:", function()
@@ -2011,20 +2081,44 @@ local function stealth(kind)
           if not (cur and max and max &gt; 0 and S.on) then return end
           if S.resting then
             if cur / max &gt;= CFG.restResume then endRest(cur .. "/" .. max .. " fatigue") end
-          elseif cur &lt;= CFG.woundAt and not (S.trip or S.align or S.wounding or S.standing) then
+          elseif cur &lt;= (VIG and CFG.vigAt or CFG.woundAt) and not (S.trip or S.align or S.wounding or S.standing) then
             startWound()
           end
         end },
       { "i don't see what you are referring to", function()
-          if S.wounding then dg.ctl.warn(NAME .. ": the game did not find '" .. tostring(woundCmd()) .. "' -- set dg.ctl.selfName to the name others see"); woundDone("no target") end
+          if S.wounding then dg.ctl.warn(NAME .. ": the game did not find '" .. tostring(VIG and vigorCmd() or woundCmd()) .. "' -- set dg.ctl.selfName to the name others see"); woundDone("no target", true) end
         end },
       { "interfered with by what you have readied", function()
-          if S.wounding then dg.ctl.warn(NAME .. ": a readied weapon spoiled the cast -- try  unwield  (or set dg.ctlData.weapon)"); woundDone("hands full") end
+          if S.wounding then dg.ctl.warn(NAME .. ": a readied weapon spoiled the cast -- try  unwield  (or set dg.ctlData.weapon)"); woundDone("hands full", true) end
         end },
       { "you cannot have anything in your hands", function()
-          if S.wounding then dg.ctl.warn(NAME .. ": hands not empty -- try  unwield  (or set dg.ctlData.weapon)"); woundDone("hands full") end
+          if S.wounding then dg.ctl.warn(NAME .. ": hands not empty -- try  unwield  (or set dg.ctlData.weapon)"); woundDone("hands full", true) end
         end },
     }
+    for _, r in ipairs(more) do def.rules[#def.rules + 1] = r end
+  end
+
+  if VIG then
+    local function outOfRunes(why)
+      if S.trip or not S.on then return end
+      if woundTimer then killTimer(woundTimer); woundTimer = nil end
+      S.wounding = false
+      if S.resting then return end
+      local back = S.back or S.room0
+      if not (back and mapRoom()) then
+        dg.ctl.warn(NAME .. ": out of runes but the mapper does not know where you are / where you started -- resting (powerroom back here)")
+        startRest(); return
+      end
+      dg.ctl.say(NAME .. ": out of runes (" .. why .. ")")
+      startTrip("renew")
+    end
+    S.outOfRunes = outOfRunes
+    local more = {
+      { "renewed", function() if S.trip and S.trip.renewing and S.trip.renewBump then S.trip.renewBump() end end },
+    }
+    for _, p in ipairs(dg.ctl.runePatterns or dg.ctlRunePatterns) do
+      more[#more + 1] = { p, function() outOfRunes("game said so") end }
+    end
     for _, r in ipairs(more) do def.rules[#def.rules + 1] = r end
   end
 
@@ -2350,6 +2444,12 @@ dg.ctlPowerTrip = function() if dg.ctlPowerNow and dg.ctlPowerNow.trip then dg.c
 
 local RUNE_OUT = { "enough charges left to invoke", "visit the runemage guild for a recharge", "you do not have the runes", "you don't have the runes", "you have no runes", "out of runes",
                    "not enough runes", "lack the runes", "no runes left", "renew your runes", "runes are depleted" }
+dg.ctlRunePatterns = RUNE_OUT
+dg.ctlRenewSteps = function()
+  return dg.ctl.renewSteps or { { walk = 38 }, { cmd = "go door" }, { walk = 175 }, { alias = "shoprenew" },
+                                { walk = 174 }, { cmd = "go door" }, { walk = "back" } }
+end
+dg.ctlPowerBack = function() powerLoad(); return dg.ctlPower.back end
 
 -- one factory for all of them.  nextCmd(state, target) -&gt; the attack command to send;  supply = vigor + renew trip.
 local function attackLoop(label, nextCmd, supply)
@@ -2367,8 +2467,7 @@ local function attackLoop(label, nextCmd, supply)
     }
     local S = { on = true, mode = "fight", n = 0, silent = 0, timers = {}, vigSeen = 0, vigRounds = 0 }
     local P = dg.ctlPower
-    local STEPS = dg.ctl.renewSteps or { { walk = 38 }, { cmd = "go door" }, { walk = 175 }, { alias = "shoprenew" },
-                                         { walk = 174 }, { cmd = "go door" }, { walk = "back" } }
+    local STEPS = dg.ctlRenewSteps()
     local function say(m) C.say(label .. ": " .. m) end
     local function after(sec, fn)
       local id
@@ -2664,6 +2763,7 @@ dg.ctlLoops = {
   pthide  = { target = false, make = function() return stealth("hide")  end },
   ptsneakf = { target = false, make = function() return stealth("follow") end },   -- ptsneakb, but lines up with the healer before resting
   ptsneakd = { target = false, make = function() return stealth("wound") end },   -- ptsneakb, but casts a dart at yourself first (another player heals you)
+  ptsneakv = { target = false, make = function() return stealth("vig")   end },   -- ptsneakb, but vigors itself when low and renews runes when they run out
   ptsneakb = { target = false, make = function() return stealth("basic") end },   -- ptsneak without any trips (pocket healer)
 
   healer = { target = false, make = function() return healerLoop() end },   -- healer [Name]: pocket healer for a resting partner
@@ -2813,7 +2913,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.76"
+C.version = "0.77"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -3720,7 +3820,7 @@ local function swCfg()
     gagFolder   = pick(A.gagFolder, "Training Gags"),
     trainPrefix = pick(A.trainPrefix, "pt"),
     hideTrigger = pick(A.hideTrigger, "hide"),
-    hideLoops   = A.hideLoops or { ptsneak = true, pthide = true, ptsneakb = true, ptsneakf = true, ptsneakd = true },
+    hideLoops   = A.hideLoops or { ptsneak = true, pthide = true, ptsneakb = true, ptsneakf = true, ptsneakd = true, ptsneakv = true },
   }
 end
 local function trigExists(name)
