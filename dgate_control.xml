@@ -1613,7 +1613,7 @@ local function stealth(kind)
     renewFirst = 10, renewQuiet = 6, renewMax = 120,   -- ptsneakv renew trip: wait for the first "renewed" line, then until 6s pass without one
   }
   local S = { on = true, hidden = false, mode = "adv", retLeft = 0, clear = false,
-              useSlink = SNEAK and SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] == true,
+              useSlink = SNEAK and not VIG and SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] == true,   -- ptsneakv is for characters WITHOUT shadow slinking
               slink = false, casting = false, castSeen = false, casts = 0, fizzles = 0, warned = false,
               busyUntil = 0,
               resting = false, trip = nil, trainPending = false, vigSeen = 0, vigWant = 4 }
@@ -1992,6 +1992,11 @@ local function stealth(kind)
       S.room0 = mapRoom()
       -- after a renew trip the sneak loops go back to the training room (CFG.trip.back, room 11933), not to wherever the loop started
       S.back = (dg.ctlPowerBack and dg.ctlPowerBack()) or (CFG.trip.back and CFG.trip.back[1] and CFG.trip.back[1].walk) or nil
+      if VIG and SLINK_CHARS[tostring(dg.ctl.char or ""):lower()] then
+        dg.ctl.warn(NAME .. ": " .. tostring(dg.ctl.char) .. " has shadow slinking but no vigor spell -- use ptsneak / ptsneakb / ptsneakf / ptsneakd instead")
+        dg.ctl.loopStop("no vigor spell")
+        return
+      end
       if VIG then
         -- fatigue from GMCP when the game sends it (see gmcpdump)
         if registerAnonymousEventHandler then
@@ -3104,7 +3109,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.80"
+C.version = "0.81"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
