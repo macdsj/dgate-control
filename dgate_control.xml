@@ -2160,6 +2160,11 @@ local function stealth(kind)
           local cur, max = (line or (getCurrentLine and getCurrentLine()) or ""):match("[Ff]atigue:%s*(%d+)%s*/%s*(%d+)")
           fatigueSeen(tonumber(cur), tonumber(max))
         end },
+      -- the health command's "HP: 145/145  Ftg:  52/ 52" (and the same line if "set update fatigue on" prints it)
+      { "ftg:", function()
+          local cur, max = (line or (getCurrentLine and getCurrentLine()) or ""):match("[Ff]tg:%s*(%d+)%s*/%s*(%d+)")
+          fatigueSeen(tonumber(cur), tonumber(max))
+        end },
       { "i don't see what you are referring to", function()
           if S.wounding then dg.ctl.warn(NAME .. ": the game did not find '" .. tostring(VIG and vigorCmd() or woundCmd()) .. "' -- set dg.ctl.selfName to the name others see"); woundDone("no target", true) end
         end },
@@ -2790,6 +2795,10 @@ local function attackLoop(label, nextCmd, supply)
             local cur, max = (line or (getCurrentLine and getCurrentLine()) or ""):match("[Ff]atigue:%s*(%d+)%s*/%s*(%d+)")
             S.fatSeen(tonumber(cur), tonumber(max))
           end },
+        { "ftg:", function()
+            local cur, max = (line or (getCurrentLine and getCurrentLine()) or ""):match("[Ff]tg:%s*(%d+)%s*/%s*(%d+)")
+            S.fatSeen(tonumber(cur), tonumber(max))
+          end },
         { "you awaken feeling great",  function() endRest("fully rested") end },
         { "you are fully rested",      function() endRest("fully rested") end },
         { "you stand up",              function() if S.mode == "stand" then cancel(standTimer); fight() end end },
@@ -3109,7 +3118,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.81"
+C.version = "0.82"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
