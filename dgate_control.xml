@@ -2584,9 +2584,10 @@ local function attackLoop(label, nextCmd, supply)
     powerLoad()
     local C = dg.ctl
     local CFG = {
+      deadWait = 5, deadMax = 12,    -- target dead / not there: wait this long and attack again (practice targets respawn); give up after deadMax tries in a row
       debounce = 1.5,                -- seconds in which further "[N sec. delay]" lines are taken to belong to the same attack
       queueWait = 3,
-      stall = 15, stallMax = 6,      -- no reply from the game for this long: send the attack again (give up after stallMax in a row)
+      stall = 10, stallMax = 6,      -- no reply from the game for this long: send the attack again (give up after stallMax in a row)
       vigorAt = tonumber(dg.ctl.vigorAt) or 8,   -- the prompt line's fatigue (if you see it) at or below this: vigor (a cast costs 3, so leave room)
       cool = 12,                     -- seconds after a vigor round before low fatigue counts again
       restResume = 0.8, restMax = 120,
@@ -2683,7 +2684,7 @@ local function attackLoop(label, nextCmd, supply)
         if w then C.send(w) end
       end
       for _ = 1, S.vigWant do C.send(vigorCmd()) end
-      S.vigTimer = after(15 + 8 * S.vigWant, function() S.vigTimer = nil; vigorDone("timed out") end)
+      S.vigTimer = after(30, function() S.vigTimer = nil; vigorDone("timed out") end)   -- re-armed after every cast (each carries ~12s of delay)
     end
 
     -- ---------------------------------------------------------------- rune renew trip
@@ -2776,13 +2777,28 @@ local function attackLoop(label, nextCmd, supply)
       end
     end
     S.armTick = armTick
+    -- the target died (practice targets fall into pieces and are replaced a few seconds later) or is not there
+    local function dead(t)
+      if S.mode ~= "fight" then return end
+      S.deadCount, S.deadN = (S.deadCount or 0) + 1, (S.deadN or 0) + 1
+      cancel(stallTimer)
+      C.send("q c")   -- the game would otherwise keep swinging at what is left of the old target
+      if S.deadN &gt; CFG.deadMax then
+        C.warn(label .. ": no target to attack after " .. CFG.deadMax .. " tries -- stopping"); C.loopStop("target gone"); return
+      end
+      if S.deadN == 1 then say("target is dead -- trying again every " .. CFG.deadWait .. "s until the next one shows up") end
+      stallTimer = after(CFG.deadWait, function() stallTimer = nil; S.again = true; attack(t) end)
+    end
     local rules = {
       -- ONE attack can print several "[N sec. delay]" lines (two free hands = two claws): answer the first only
       { "sec. delay]", function(t)
           if S.mode ~= "fight" or S.hold then return end
           S.hold = true
           after(CFG.debounce, function() S.hold = false end)
-          S.silent = 0; attack(t)
+          S.silent = 0
+          local mark = S.deadCount or 0   -- a delay line that is not followed by "...is dead!" means the attack landed
+          after(1, function() if (S.deadCount or 0) == mark then S.deadN = 0 end end)
+          attack(t)
         end },
       -- the game's queue (5 commands) was full and dropped the attack: try again in a moment
       { "type-ahead queue full", function(t)
@@ -2818,7 +2834,8 @@ local function attackLoop(label, nextCmd, supply)
         { "weaving those runes", function()
             if S.mode ~= "vigor" then return end
             S.vigSeen = S.vigSeen + 1
-            if S.vigSeen &gt;= S.vigWant then vigorDone("all cast") end
+            if S.vigSeen &gt;= S.vigWant then vigorDone("all cast")
+            else cancel(S.vigTimer); S.vigTimer = after(30, function() S.vigTimer = nil; vigorDone("timed out") end) end   -- each cast carries ~12s of delay
           end },
         { "the runes quickly fly apart", function()   -- an interrupted cast: one more try
             if S.mode == "vigor" and not S.extra then S.extra = true; C.send(vigorCmd()) end
@@ -2835,6 +2852,8 @@ local function attackLoop(label, nextCmd, supply)
         { "renewed", function() if S.renewBump and S.renewing then S.renewBump() end end },
       }
       for _, r in ipairs(more) do rules[#rules + 1] = r end
+      rules[#rules + 1] = { "but the*is dead", function(t) dead(t) end }
+      rules[#rules + 1] = { "i don't see what you are referring to", function(t) dead(t) end }
       for _, p in ipairs(C.runePatterns or RUNE_OUT) do
         rules[#rules + 1] = { p, function() if S.mode == "fight" or S.mode == "vigor" then S.trip("game said so") end end }
       end
@@ -2842,6 +2861,7 @@ local function attackLoop(label, nextCmd, supply)
 
     return {
       qc = true,
+      ownStops = supply,
       start = function(t)
         S.t = t; S.room0 = mapRoom()
         dg.ctlPowerNow = S
@@ -3129,7 +3149,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.83"
+C.version = "0.84"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -4104,7 +4124,7 @@ function C.loopStart(name, args)
   end
 
   local stops = {}
-  if L.target ~= false then
+  if L.target ~= false and not L.ownStops then   -- ownStops: the loop handles "target is dead" itself (practice targets respawn)
     for _, s in ipairs(dg.ctlStops or {}) do stops[#stops + 1] = s end
   end
   for _, s in ipairs(L.stop or {}) do stops[#stops + 1] = s end
