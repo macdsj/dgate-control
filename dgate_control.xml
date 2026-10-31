@@ -2584,6 +2584,8 @@ local function attackLoop(label, nextCmd, supply)
     powerLoad()
     local C = dg.ctl
     local CFG = {
+      debounce = 1.5,                -- seconds in which further "[N sec. delay]" lines are taken to belong to the same attack
+      queueWait = 3,
       stall = 15, stallMax = 6,      -- no reply from the game for this long: send the attack again (give up after stallMax in a row)
       vigorAt = tonumber(dg.ctl.vigorAt) or 8,   -- the prompt line's fatigue (if you see it) at or below this: vigor (a cast costs 3, so leave room)
       cool = 12,                     -- seconds after a vigor round before low fatigue counts again
@@ -2775,9 +2777,18 @@ local function attackLoop(label, nextCmd, supply)
     end
     S.armTick = armTick
     local rules = {
+      -- ONE attack can print several "[N sec. delay]" lines (two free hands = two claws): answer the first only
       { "sec. delay]", function(t)
-          if S.mode ~= "fight" then return end
+          if S.mode ~= "fight" or S.hold then return end
+          S.hold = true
+          after(CFG.debounce, function() S.hold = false end)
           S.silent = 0; attack(t)
+        end },
+      -- the game's queue (5 commands) was full and dropped the attack: try again in a moment
+      { "type-ahead queue full", function(t)
+          if S.mode ~= "fight" then return end
+          cancel(stallTimer)
+          stallTimer = after(CFG.queueWait, function() stallTimer = nil; S.again = true; attack(t) end)
         end },
       { "you're too close",                             function(t) if S.mode == "fight" then S.again = true; attack(t) end end },
       { "you must move closer to your opponent's rank", function(t) if S.mode == "fight" then S.again = true; attack(t) end end },
@@ -3118,7 +3129,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.82"
+C.version = "0.83"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
