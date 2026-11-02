@@ -91,6 +91,21 @@ dg.ctl.sendArg("k", matches[2])</script>
           <regex>^gmcpdump$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>learnall</name>
+          <script>local a = (matches[2] or ""):gsub("^%s+", ""):gsub("%s+$", "")
+dg.ctlTrain(a == "" and "start" or a)</script>
+          <command />
+          <packageName />
+          <regex>^learnall(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>dgtrain</name>
+          <script>dg.ctlTrain(matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^dgtrain(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>martstyle</name>
           <script>dg.ctlMartStyle(matches[2])</script>
           <command />
@@ -3136,6 +3151,174 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
           <eventHandlerList />
         </Script>
         <Script isActive="yes" isFolder="no">
+          <name>DG Control - learnall</name>
+          <packageName />
+          <script>-- DG Control :: dgtrain -- learn every new skill the trainer offers, one every ~5.5 minutes, hands-free.
+--
+--   learnall           stand in the training room (in play, or at the Dragon's Gate menu) and type this to start.
+--   learnall stop      stop (it also stops by itself if you are disconnected)
+--   dgtrain            what it is doing, what is left, what is skipped  (same as  learnall status)
+--   learnall skip 8 3  never learn skills 8 and 3 (Quickdraw, number 8, is skipped by default);  learnall unskip 8  undoes it
+--
+-- Each round: log in (1), wait for "Welcome to Dragon's Gate", read "train list" (the "New skills we can teach you"
+-- section; skills you already have are never listed again), "train learn N" for the first one that is not skipped.
+-- The game then puts you out of play for about five minutes and returns you to the menu; after dg.ctl.trainWait seconds
+-- (330 by default) it tries to log in again, and keeps trying every 15 seconds if the character is still locked out.
+-- After the LAST new skill it stays at the menu (logged out), so you can nap through it.
+dg = dg or {}
+local T = { skip = { [8] = true }, state = "idle", tries = 0, learned = {} }
+dg.ctlTrainState = T
+local timers, trigs, hDisc = {}, {}, nil
+
+local function say(m)  dg.ctl.say("dgtrain: " .. m) end
+local function warn(m) dg.ctl.warn("dgtrain: " .. m) end
+local function after(sec, fn)
+  local id
+  id = tempTimer(sec, function() timers[id] = nil; fn() end)
+  timers[id] = true
+  return id
+end
+local function cancel(id) if id then killTimer(id); timers[id] = nil end end
+local function cleanup()
+  for id in pairs(timers) do killTimer(id) end
+  timers = {}
+  for _, id in ipairs(trigs) do killTrigger(id) end
+  trigs = {}
+  if hDisc and killAnonymousEventHandler then killAnonymousEventHandler(hDisc); hDisc = nil end
+  T.timer = nil
+end
+local function stop(msg, isWarn)
+  cleanup()
+  T.state = "idle"
+  if msg then (isWarn and warn or say)(msg) end
+end
+
+local startLogin, startList, doLearn
+
+-- ------------------------------------------------------------------ login
+startLogin = function()
+  T.state, T.tries = "login", T.tries
+  cancel(T.timer)
+  if T.tries &gt;= 14 then stop("could not log in after " .. T.tries .. " tries -- stopped (still locked out? type  1  yourself)", true); return end
+  T.tries = T.tries + 1
+  send("1", false)
+  T.timer = after(15, function() T.timer = nil; if T.state == "login" then startLogin() end end)
+end
+
+-- ------------------------------------------------------------------ list
+startList = function()
+  T.state, T.cand, T.inNew = "list", {}, false
+  cancel(T.timer)
+  send("train list", false)
+  T.timer = after(12, function()
+    T.timer = nil
+    if T.state ~= "list" then return end
+    T.listFails = (T.listFails or 0) + 1
+    if T.listFails &gt; 3 then stop("'train list' got no answer 3 times -- are you in the training room?", true); return end
+    warn("no answer to 'train list' -- trying the menu login, then again")
+    T.tries = 0
+    startLogin()
+  end)
+end
+
+local function afterList()
+  cancel(T.timer); T.timer = nil
+  T.listFails = 0
+  local pick, rest = nil, 0
+  for _, s in ipairs(T.cand) do
+    if not T.skip[s.n] then
+      if not pick then pick = s else rest = rest + 1 end
+    end
+  end
+  if not pick then stop("no new skills left to learn (" .. #T.learned .. " learned this run) -- done", false); return end
+  T.last = (rest == 0)
+  doLearn(pick, rest)
+end
+
+-- ------------------------------------------------------------------ learn
+doLearn = function(s, rest)
+  T.state, T.cur = "learn", s
+  say("learning " .. s.n .. ". " .. s.name .. "  (" .. rest .. " more after this one)")
+  send("train learn " .. s.n, false)
+  cancel(T.timer)
+  T.timer = after(25, function() T.timer = nil; if T.state == "learn" then stop("no 'returned to the menu' answer to  train learn " .. s.n .. "  -- stopped", true) end end)
+end
+
+local function onMenu(until_)
+  if T.state ~= "learn" then return end
+  cancel(T.timer); T.timer = nil
+  T.learned[#T.learned + 1] = T.cur
+  if until_ then say("out of play until " .. until_ .. " (the game's clock)") end
+  if T.last then stop("that was the last new skill -- leaving you at the menu, logged out", false); return end
+  T.state = "wait"
+  local w = tonumber(dg.ctl.trainWait) or 330
+  say("waiting " .. w .. "s, then logging in again")
+  T.timer = after(w, function() T.timer = nil; T.tries = 0; startLogin() end)
+end
+
+local function inGame()
+  if T.state ~= "login" then return end
+  cancel(T.timer); T.timer = nil
+  T.tries = 0
+  T.state = "settle"
+  -- the control package runs its login commands first; let them clear the game's queue
+  T.timer = after(8, function() T.timer = nil; startList() end)
+end
+
+-- ------------------------------------------------------------------ commands
+local function arm()
+  local function trig(rx, fn) trigs[#trigs + 1] = tempRegexTrigger(rx, fn) end
+  trig("^\\s*Welcome to Dragon's Gate, ", inGame)
+  trig("New skills we can teach you", function() if T.state == "list" then T.inNew = true end end)
+  trig("Existing skills we can train you in", function() if T.state == "list" then T.inNew = false end end)
+  trig("^\\s*\\d+\\.\\s+\\S", function()
+    if T.state ~= "list" or not T.inNew then return end
+    local l = (line or (getCurrentLine and getCurrentLine()) or "") .. "   "
+    for n, name in l:gmatch("(%d+)%.%s+(.-)%s%s%s+") do T.cand[#T.cand + 1] = { n = tonumber(n), name = name } end
+  end)
+  trig("We can only train through rank", function() if T.state == "list" then afterList() end end)
+  trig("being returned to the menu", function()
+    local l = (line or (getCurrentLine and getCurrentLine()) or "")
+    onMenu(l:match("out%-of%-play until (.-), you are being") or nil)
+  end)
+  if registerAnonymousEventHandler then
+    hDisc = registerAnonymousEventHandler("sysDisconnectionEvent", function()
+      if T.state ~= "idle" and T.state ~= "wait" and T.state ~= "login" then stop("disconnected -- stopped", true) end
+    end)
+  end
+end
+
+local function skipList()
+  local t = {}
+  for n in pairs(T.skip) do t[#t + 1] = n end
+  table.sort(t)
+  return #t &gt; 0 and table.concat(t, ", ") or "none"
+end
+
+dg.ctlTrain = function(arg)
+  arg = tostring(arg or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local cmd, rest = arg:match("^(%S+)%s*(.-)$")
+  cmd = cmd and cmd:lower() or "status"
+  if cmd == "start" then
+    if T.state ~= "idle" then warn("already running (" .. T.state .. ") -- learnall stop  first"); return end
+    cleanup(); T.learned, T.tries, T.listFails = {}, 0, 0
+    arm()
+    say("starting -- skipping skills " .. skipList() .. ". Stay connected; Mudlet must keep running.")
+    startList()
+  elseif cmd == "stop" then
+    if T.state == "idle" then say("not running") else stop("stopped by you (" .. #T.learned .. " learned this run)") end
+  elseif cmd == "skip" or cmd == "unskip" then
+    for n in rest:gmatch("%d+") do T.skip[tonumber(n)] = (cmd == "skip") or nil end
+    say("skipping: " .. skipList())
+  else
+    say("state: " .. T.state .. "   learned this run: " .. #T.learned .. "   skipping: " .. skipList() ..
+        (T.cur and ("   current/last: " .. T.cur.n .. ". " .. T.cur.name) or ""))
+  end
+end
+</script>
+          <eventHandlerList />
+        </Script>
+        <Script isActive="yes" isFolder="no">
           <name>DG Control - engine</name>
           <packageName />
           <script>-- DG Control :: engine
@@ -3149,7 +3332,7 @@ if dg.ctl and dg.ctl.initSoon then dg.ctl.initSoon() end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.84"
+C.version = "0.85"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
