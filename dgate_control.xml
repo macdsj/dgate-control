@@ -1466,7 +1466,7 @@ D.weapon = D.weapon or { default = "dirk" }
 D.woundSpell = D.woundSpell or { default = "dart" }
 
 -- lines that end any targeted loop, for every character
-dg.ctlStops = { "but the*is dead", "I don't see what you are referring to" }
+dg.ctlStops = { "but the*is dead", "I don't see what you are referring to", "what good would that do against the dead" }
 
 -- weapon / punch rules shared by killing, beat and throwing
 local weaponRules = {
@@ -2802,7 +2802,7 @@ local function attackLoop(label, nextCmd, supply)
         C.warn(label .. ": no target to attack after " .. CFG.deadMax .. " tries -- stopping"); C.loopStop("target gone"); return
       end
       if S.deadN == 1 then say("target is dead -- trying again every " .. CFG.deadWait .. "s until the next one shows up") end
-      stallTimer = after(CFG.deadWait, function() stallTimer = nil; S.again = true; attack(t) end)
+      stallTimer = after(S.deadN == 1 and 1.5 or CFG.deadWait, function() stallTimer = nil; S.again = true; attack(t) end)
     end
     local rules = {
       -- ONE attack can print several "[N sec. delay]" lines (two free hands = two claws): answer the first only
@@ -2869,6 +2869,7 @@ local function attackLoop(label, nextCmd, supply)
       for _, r in ipairs(more) do rules[#rules + 1] = r end
       rules[#rules + 1] = { "but the*is dead", function(t) dead(t) end }
       rules[#rules + 1] = { "i don't see what you are referring to", function(t) dead(t) end }
+      rules[#rules + 1] = { "what good would that do against the dead", function(t) dead(t) end }
       for _, p in ipairs(C.runePatterns or RUNE_OUT) do
         rules[#rules + 1] = { p, function() if S.mode == "fight" or S.mode == "vigor" then S.trip("game said so") end end }
       end
@@ -3334,7 +3335,7 @@ end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.86"
+C.version = "0.87"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -4291,6 +4292,9 @@ function C.loopStart(name, args)
   local t = nil
   if L.target ~= false then
     t = (args ~= "") and args or C.lastTarget
+    -- the practice (pt...) loops with no target given aim at "target": the FIRST practice target in the room, which is
+    -- always the one someone else should not be left with (when it dies the next one becomes "target")
+    if args == "" and name:sub(1, 2) == "pt" then t = "target" end
     if not t or t == "" then C.warn(name .. ": needs a target, e.g.  " .. name .. " orc"); return end
     C.lastTarget = t
     C.setTarget(1, t)
@@ -4308,19 +4312,45 @@ function C.loopStart(name, args)
     end)
   end
 
+  -- Practice targets die after ~20 uses and are replaced. When the target's name ends in "target" ("target", "2 target",
+  -- "2nd practice target") a "dead" line does not end the loop: it clears the queue, waits, and sends the loop's first
+  -- command again (the next target is now "target"). It gives up after 12 tries in a row.
+  local practice = t and tostring(t):lower():match("target%s*$") ~= nil
+  local function restart()
+    if type(L.start) == "function" then L.start(t) else C.sendAll(C.split(subst(L.start or "", t))) end
+  end
+  local function practiceDead()
+    local P = C.loopCur
+    if not P or P.name ~= name then return end
+    if P.deadTimer then return end   -- several dead lines in one burst: one retry
+    local nowt = os.time()
+    if not P.deadAt or nowt - P.deadAt &gt; 60 then P.deadN = 0 end
+    P.deadAt, P.deadN = nowt, (P.deadN or 0) + 1
+    if P.deadN &gt; 12 then C.warn(name .. ": no practice target left after 12 tries -- stopping"); C.loopStop("target gone"); return end
+    if P.deadN == 1 then C.say(name .. ": target is dead -- trying again until the next one shows up") end
+    C.send("q c")
+    P.deadTimer = tempTimer(P.deadN == 1 and 1.5 or 5, function()
+      P.deadTimer = nil
+      if C.loopCur == P then restart() end
+    end)
+  end
+
   local stops = {}
   if L.target ~= false and not L.ownStops then   -- ownStops: the loop handles "target is dead" itself (practice targets respawn)
-    for _, s in ipairs(dg.ctlStops or {}) do stops[#stops + 1] = s end
+    for _, s in ipairs(dg.ctlStops or {}) do stops[#stops + 1] = { s, nil, true } end
   end
-  for _, s in ipairs(L.stop or {}) do stops[#stops + 1] = s end
-  for _, s in ipairs(stops) do
+  for _, s in ipairs(L.stop or {}) do stops[#stops + 1] = { s } end
+  for _, e in ipairs(stops) do
+    local s, isDeadStop = e[1], e[3]
     local pat, cmd = s, nil
     if type(s) == "table" then pat, cmd = s[1], s[2] end
-    C.trig("loop", "(?i)" .. C.patRx(pat, t), function() C.loopStop("done", cmd) end)
+    C.trig("loop", "(?i)" .. C.patRx(pat, t), function()
+      if isDeadStop and practice then practiceDead() else C.loopStop("done", cmd) end
+    end)
   end
 
   if L.qc then C.send("q c") end
-  if type(L.start) == "function" then L.start(t) else C.sendAll(C.split(subst(L.start or "", t))) end
+  restart()
   C.say("loop on: " .. name .. (t and (" vs " .. t) or "") .. "   (halt / F4 to stop)")
 end
 
