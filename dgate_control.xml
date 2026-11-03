@@ -2910,10 +2910,12 @@ dg.ctlMartStyles = dg.ctlMartStyles or {
 }
 dg.ctlMartStyles.tonyjaa = dg.ctlMartStyles.tonyjaa or dg.ctlMartStyles.muaythai
 local warned = {}
-local function martMoves(style)
+local function martMoves(style, fallback)   -- fallback: what a loop uses when no style is set (ptmart: strike)
   if dg.ctl.martialMoves and #dg.ctl.martialMoves &gt; 0 then return dg.ctl.martialMoves end
   powerLoad()
-  style = style or dg.ctlPower.style or "default"
+  style = style or dg.ctlPower.style
+  if not style then return fallback or dg.ctlMartStyles.default end
+  if style == "default" then return dg.ctlMartStyles.default end
   local cand = dg.ctlMartStyles[style] or dg.ctlMartStyles.default
   if style == "default" then return cand end
   local known, out = dg.ctlPower.known, {}
@@ -2951,9 +2953,9 @@ dg.ctlMartStyle = function(arg)
   end
 end
 -- mart: rotate through the style's moves.  S.again = repeat the last move (it was refused, or no answer came).
-local function martCmd(style)
+local function martCmd(style, fallback)
   return function(S, t, again)
-    S.moves = S.moves or martMoves(style)
+    S.moves = S.moves or martMoves(style, fallback)
     if not again or not S.mi then S.mi = (S.mi or 0) % #S.moves + 1 end
     return "martial " .. S.moves[S.mi] .. " at " .. t
   end
@@ -2962,7 +2964,7 @@ local function fixed(fmt) return function(S, t) return (fmt:gsub("{t}", t)) end 
 local function webCmd(S, t) return "web " .. tostring(dg.ctl.webSize or "small") .. " at " .. t end
 
 local POWER_LOOPS = {   -- loop name = { label, attack, supply }
-  mart    = { martCmd(), false }, ptmart    = { martCmd(), true },
+  mart    = { martCmd(), false }, ptmart    = { martCmd(nil, { "strike" }), true },
   ipman   = { martCmd("ipman"), false },  kicker = { martCmd("kicker"), false },
   muaythai = { martCmd("muaythai"), false }, tonyjaa = { martCmd("muaythai"), false },
   clawk   = { fixed("claw {t}"), false },            ptclaw   = { fixed("claw {t}"), true },
@@ -3332,7 +3334,7 @@ end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.85"
+C.version = "0.86"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
