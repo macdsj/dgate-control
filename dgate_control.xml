@@ -2988,24 +2988,46 @@ local POWER_LOOPS = {   -- loop name = { label, attack, supply }
 --   throw the broken X away, ready another X from your pack, carry on. No spare = loop stops and says so.
 --   Bow: nock an arrow before each shot (guess from the manual: "You must LOAD or NOCK an arrow or bolt first!").
 --   Thrown weapons are not handled yet (needs get + ready after each throw).
-local WPN = { phase = nil, noun = nil, tries = 0 }
+-- Item keywords are odd ("long sword" answers to "long", not "sword"). The keyword is the last word of the name
+-- unless dg.ctlWeaponKeys (set in a script: dg.ctlWeaponKeys["long sword"]="long") has an entry for the end of the name; if the game does not answer to that, the other
+-- words of the name are tried in turn (last to first) before giving up.
+dg.ctlWeaponKeys = dg.ctlWeaponKeys or { ["long sword"] = "long" }
+local function wpnCands(name)
+  local c, seen = {}, {}
+  local function add(w) if w and w ~= "" and not seen[w] then seen[w] = true; c[#c + 1] = w end end
+  for suffix, key in pairs(dg.ctlWeaponKeys) do
+    if name:sub(-#suffix) == suffix then add(key) end
+  end
+  local words = {}
+  for w in name:gmatch("[%a'%-]+") do words[#words + 1] = w end
+  for i = #words, 1, -1 do add(words[i]) end
+  return c
+end
+local WPN = { phase = nil, noun = nil, tries = 0, cands = {}, i = 1 }
 dg.ctlWpn = WPN
-local function wpnClear() WPN.phase, WPN.noun, WPN.tries = nil, nil, 0 end
-local function wpnReady(t)
+local function wpnClear() WPN.phase, WPN.noun, WPN.tries, WPN.cands, WPN.i = nil, nil, 0, {}, 1 end
+local wpnReady
+wpnReady = function(t)
   WPN.phase = "ready"
+  local mark = (WPN.mark or 0) + 1; WPN.mark = mark
   dg.ctl.send("ready " .. WPN.noun)
-  tempTimer(4, function()
-    if WPN.phase == "ready" then
-      local n = WPN.noun; wpnClear()
-      dg.ctl.warn("ptweapon: no spare " .. tostring(n) .. " to ready -- out of weapons, stopping")
-      dg.ctl.loopStop("no spare weapon")
+  tempTimer(3.5, function()
+    if WPN.phase == "ready" and WPN.mark == mark then
+      if WPN.i &lt; #WPN.cands then
+        WPN.i = WPN.i + 1; WPN.noun = WPN.cands[WPN.i]
+        wpnReady(t)
+      else
+        wpnClear()
+        dg.ctl.warn("ptweapon: no spare to ready -- out of weapons, stopping")
+        dg.ctl.loopStop("no spare weapon")
+      end
     end
   end)
 end
 local function wpnBroke(t)
   local name = tostring(getCurrentLine and getCurrentLine() or ""):lower():match("your damaged%s+(.-)%s+just broke")
   if not name then return end
-  WPN.noun = name:match("([%a'%-]+)%s*$") or name
+  WPN.cands = wpnCands(name); WPN.i = 1; WPN.noun = WPN.cands[1] or name
   WPN.tries = 0
   WPN.phase = "throw"
   dg.ctl.send("q c")
@@ -3402,7 +3424,7 @@ end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.89"
+C.version = "0.90"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
