@@ -3335,7 +3335,7 @@ end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.87"
+C.version = "0.88"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -4436,6 +4436,24 @@ function C.init()
     local name = trim(matches[2] or ""):lower()
     local cur = dg.ctlWield and dg.ctlWield[wieldKey()]
     if cur and cur.name == name then dg.ctlWield[wieldKey()] = false end
+  end)
+  -- a DAMAGED returning weapon (boomerang) flies back to your hand: stow it in the pack so it is not
+  -- thrown again until it breaks (repairable). If the game says it is still readied, remove it first.
+  --   "The damaged simple wooden boomerang returns to your hand."   (or "Your damaged ...")
+  -- dg.ctl.packName = the word for your container (default "back" = backpack); dg.ctl.damagedStow = false turns it off.
+  C.trig("sys", "(?i)\\bdamaged\\s+(.+?)\\s+returns? to your hand", function()
+    if C.damagedStow == false or dg.ctl.damagedStow == false then return end
+    local noun = itemNoun(trim(matches[2] or ""))
+    if noun == "" then return end
+    C.stowItem, C.stowAt = noun, os.time()
+    C.send("put " .. noun .. " in " .. (dg.ctl.packName or "back"))
+  end)
+  C.trig("sys", "(?i)You need to unready that before putting it away", function()
+    local noun = C.stowItem
+    if not noun or os.time() - (C.stowAt or 0) > 20 then return end
+    C.stowItem = nil
+    C.send("remove " .. noun)
+    tempTimer(1.5, function() C.send("put " .. noun .. " in " .. (dg.ctl.packName or "back")) end)
   end)
 
   -- The "inv" screen ("Items equipped:" / "Items carried:" / "You have N silver pieces ...") tells us what
