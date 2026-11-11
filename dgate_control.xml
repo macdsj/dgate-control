@@ -287,6 +287,13 @@ dg.ctl.send("get boot")</script>
           <regex>^pl(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>ptweapon</name>
+          <script>dg.ctl.loopStart("ptweapon", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ptweapon(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>ptpl</name>
           <script>dg.ctl.loopStart("ptpl", matches[2])</script>
           <command />
@@ -2975,6 +2982,56 @@ local POWER_LOOPS = {   -- loop name = { label, attack, supply }
   webk    = { webCmd, false },                       ptweb    = { webCmd, true },
 }
 
+
+-- ptweapon: weapon-skill practice that copes with practice weapons breaking.
+--   swing (att {t}) after every swing line; when "Your damaged X just broke!" appears:
+--   throw the broken X away, ready another X from your pack, carry on. No spare = loop stops and says so.
+--   Bow: nock an arrow before each shot (guess from the manual: "You must LOAD or NOCK an arrow or bolt first!").
+--   Thrown weapons are not handled yet (needs get + ready after each throw).
+local WPN = { phase = nil, noun = nil, tries = 0 }
+dg.ctlWpn = WPN
+local function wpnClear() WPN.phase, WPN.noun, WPN.tries = nil, nil, 0 end
+local function wpnReady(t)
+  WPN.phase = "ready"
+  dg.ctl.send("ready " .. WPN.noun)
+  tempTimer(4, function()
+    if WPN.phase == "ready" then
+      local n = WPN.noun; wpnClear()
+      dg.ctl.warn("ptweapon: no spare " .. tostring(n) .. " to ready -- out of weapons, stopping")
+      dg.ctl.loopStop("no spare weapon")
+    end
+  end)
+end
+local function wpnBroke(t)
+  local name = tostring(getCurrentLine and getCurrentLine() or ""):lower():match("your damaged%s+(.-)%s+just broke")
+  if not name then return end
+  WPN.noun = name:match("([%a'%-]+)%s*$") or name
+  WPN.tries = 0
+  WPN.phase = "throw"
+  dg.ctl.send("q c")
+  dg.ctl.say("ptweapon: " .. name .. " broke -- throwing it away and readying another")
+  dg.ctl.send("throw " .. WPN.noun)
+  tempTimer(2.5, function() if WPN.phase == "throw" then wpnReady(t) end end)
+end
+local function wpnTooDamaged(t)
+  if WPN.phase ~= "ready" then return end
+  WPN.tries = WPN.tries + 1
+  if WPN.tries &gt; 3 then
+    local n = WPN.noun; wpnClear()
+    dg.ctl.warn("ptweapon: still only a broken " .. tostring(n) .. " -- stopping"); dg.ctl.loopStop("no spare weapon"); return
+  end
+  WPN.phase = "throw"
+  dg.ctl.send("throw " .. WPN.noun)
+  tempTimer(2.5, function() if WPN.phase == "throw" then wpnReady(t) end end)
+end
+local function wpnReadied(t)
+  if WPN.phase ~= "ready" then return end
+  wpnClear()
+  tempTimer(1, function() dg.ctl.send("att " .. tostring(t)) end)
+end
+local function wpnSwing(t) if not WPN.phase then dg.ctl.send("att " .. tostring(t)) end end
+local function wpnShot(t) if not WPN.phase then dg.ctl.send("nock arrow;att " .. tostring(t)) end end
+
 dg.ctlLoops = {
 
   ------------------------------------------------------------ generic (every character)
@@ -2983,6 +3040,16 @@ dg.ctlLoops = {
   -- Martial arts and natural attacks (mart, clawk, bitek, stingk, breathk, webk, and the pt... versions) are built
   -- by attackLoop() above and registered right after this table.
   thk     = { qc = true, start = "throw spiked at {t}", rules = weaponRules },
+  ptweapon = { qc = true, start = function(t) wpnClear(); dg.ctl.send("att " .. tostring(t)) end, rules = {
+      { "you swing your",                                  wpnSwing },
+      { "you fire your",                                   wpnShot },
+      { "you must load or nock an arrow",                  wpnShot },
+      { "you're too close",                                wpnSwing },
+      { "you must move closer to your opponent's rank",    wpnSwing },
+      { "your damaged*just broke",                         wpnBroke },
+      { "too damaged to be used",                          wpnTooDamaged },
+      { "is now your ready weapon",                        wpnReadied },
+  } },
 
   -- First aid on yourself:  fame.  Sends  treat {me}  and sends it again every time the game
   -- says "You tend your wounds." {me} is whatever setme says, so a disguised character
@@ -3335,7 +3402,7 @@ end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.88"
+C.version = "0.89"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
