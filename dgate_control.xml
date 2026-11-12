@@ -117,7 +117,7 @@ dg.ctlTrain(a == "" and "start" or a)</script>
           <script>dg.ctl.loopStart("clawk", matches[2])</script>
           <command />
           <packageName />
-          <regex>^clawk(?:\s+(.*))?$</regex>
+          <regex>^(?:clawk|ck)(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
           <name>bitek</name>
@@ -138,7 +138,7 @@ dg.ctlTrain(a == "" and "start" or a)</script>
           <script>dg.ctl.loopStart("breathk", matches[2])</script>
           <command />
           <packageName />
-          <regex>^breathk(?:\s+(.*))?$</regex>
+          <regex>^(?:breathk|brk)(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
           <name>webk</name>
@@ -3692,7 +3692,7 @@ end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.93"
+C.version = "0.94"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
