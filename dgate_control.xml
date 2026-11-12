@@ -3019,9 +3019,19 @@ local function wpnCands(name)
   return c
 end
 local WPN = { phase = nil, noun = nil, tries = 0, cands = {}, i = 1 }
+-- Skill rotation: when the game says "You now feel prepared to train further in Piercing Weapons." the loop takes the weapon
+-- off, readies the weapon for a skill that still has work left, and carries on -- until every skill here is ready to train.
+-- Edit with:  dg.ctlWeaponSet = { {skill="piercing weapons", key="spear"}, {skill="sharp weapons", key="long"}, {skill="blunt weapons", key="club"} }
+dg.ctlWeaponSet = dg.ctlWeaponSet or {
+  { skill = "piercing weapons", key = "spear" },
+  { skill = "sharp weapons",    key = "long"  },
+  { skill = "blunt weapons",    key = "club"  },
+}
+local WSK = { ready = {}, unavail = {}, cur = nil, want = nil, busy = false }
+dg.ctlWpnSkills = WSK
 dg.ctlWpn = WPN
 local function wpnClear() WPN.phase, WPN.noun, WPN.tries, WPN.cands, WPN.i = nil, nil, 0, {}, 1 end
-local wpnReady
+local wpnReady, wpnSwitchFail
 wpnReady = function(t)
   WPN.phase = "ready"
   local mark = (WPN.mark or 0) + 1; WPN.mark = mark
@@ -3031,6 +3041,8 @@ wpnReady = function(t)
       if WPN.i &lt; #WPN.cands then
         WPN.i = WPN.i + 1; WPN.noun = WPN.cands[WPN.i]
         wpnReady(t)
+      elseif WSK.want then
+        wpnSwitchFail(t)
       else
         wpnClear()
         dg.ctl.warn("ptweapon: no spare to ready -- out of weapons, stopping")
@@ -3064,10 +3076,89 @@ end
 local function wpnReadied(t)
   if WPN.phase ~= "ready" then return end
   wpnClear()
+  if WSK.want then WSK.cur, WSK.want, WSK.busy = WSK.want, nil, false end
   tempTimer(1, function() dg.ctl.send("att " .. tostring(t)) end)
 end
-local function wpnSwing(t) if not WPN.phase then dg.ctl.send("att " .. tostring(t)) end end
+local function wpnSkillOf(name)
+  for i, e in ipairs(dg.ctlWeaponSet) do
+    for w in tostring(name):lower():gmatch("[%a'%-]+") do if w == e.key then return i end end
+  end
+end
+local function wpnSwing(t)
+  local name = tostring(getCurrentLine and getCurrentLine() or ""):lower():match("you swing your%s+(.-)%s+at ")
+  if name and not WSK.want then WSK.cur = wpnSkillOf(name) or WSK.cur end
+  if not WPN.phase then dg.ctl.send("att " .. tostring(t)) end
+end
 local function wpnShot(t) if not WPN.phase then dg.ctl.send("nock arrow;att " .. tostring(t)) end end
+-- which skill to practice next: the first one after the current that is neither ready to train nor unavailable
+local function wpnNext()
+  local n = #dg.ctlWeaponSet
+  for k = 1, n do
+    local i = ((WSK.cur or 0) + k - 1) % n + 1
+    if i ~= WSK.cur and not WSK.ready[i] and not WSK.unavail[i] then return i end
+  end
+end
+local function wpnSwitch(t)
+  if WSK.busy then return end
+  local i = wpnNext()
+  if not i then
+    local cur = WSK.cur and not WSK.ready[WSK.cur]
+    if cur then return end   -- the skill in hand still has work left
+    dg.ctl.say("ptweapon: every weapon skill is ready to train -- stopping")
+    dg.ctl.loopStop("skills ready")
+    return
+  end
+  WSK.busy, WSK.want = true, i
+  local e = dg.ctlWeaponSet[i]
+  local old = WSK.cur and dg.ctlWeaponSet[WSK.cur].key
+  dg.ctl.say("ptweapon: switching to " .. e.skill .. " (" .. e.key .. ")")
+  WPN.phase = "switch"
+  dg.ctl.send("q c")
+  dg.ctl.send("remove " .. (old or e.key))
+  tempTimer(2, function()
+    if WSK.want ~= i then return end
+    WPN.cands, WPN.i, WPN.noun, WPN.tries = { e.key }, 1, e.key, 0
+    wpnReady(t)
+  end)
+end
+wpnSwitchFail = function(t)
+  local i = WSK.want
+  WSK.want, WSK.busy = nil, false
+  WPN.phase = nil
+  if i then
+    WSK.unavail[i] = true
+    dg.ctl.warn("ptweapon: no " .. dg.ctlWeaponSet[i].key .. " to ready for " .. dg.ctlWeaponSet[i].skill .. " -- skipping that skill")
+  end
+  local nx = wpnNext()
+  if nx then wpnSwitch(t)
+  else
+    dg.ctl.warn("ptweapon: no weapon left to switch to -- stopping")
+    dg.ctl.loopStop("no weapon")
+  end
+end
+-- "You now feel prepared to train further in Piercing Weapons."
+local function wpnPrepared(t)
+  local sk = tostring(getCurrentLine and getCurrentLine() or ""):lower():match("train further in%s+(.-)%.?%s*$")
+  if not sk then return end
+  for i, e in ipairs(dg.ctlWeaponSet) do
+    if sk == e.skill then
+      WSK.ready[i] = true
+      if i == WSK.cur or WSK.cur == nil then wpnSwitch(t) end
+    end
+  end
+end
+-- the "skills" list: a star in front (or 0 left to go) means ready to train
+local function wpnSkillLine(t)
+  local l = tostring(getCurrentLine and getCurrentLine() or ""):lower()
+  for i, e in ipairs(dg.ctlWeaponSet) do
+    local star, remain = l:match("^%s*(%*?)%s*" .. e.skill:gsub("%s", "%%s+") .. "%s+(%d+)")
+    if remain then
+      WSK.ready[i] = (star == "*") or tonumber(remain) == 0
+      if WSK.ready[i] and i == WSK.cur then wpnSwitch(t) end
+    end
+  end
+end
+
 
 
 -- ptfa: first aid training under fire. Sit, treat yourself over and over, keep a shield / parrying dagger readied (shield
@@ -3330,7 +3421,12 @@ dg.ctlLoops = {
   -- by attackLoop() above and registered right after this table.
   thk     = { qc = true, start = "throw spiked at {t}", rules = weaponRules },
   ptfa = { target = false, make = function() return faLoop() end },   -- ptfa: first aid training under fire (see faLoop)
-  ptweapon = { qc = true, start = function(t) wpnClear(); dg.ctl.send("att " .. tostring(t)) end, rules = {
+  ptweapon = { qc = true, start = function(t)
+      wpnClear(); WSK.ready, WSK.unavail, WSK.cur, WSK.want, WSK.busy = {}, {}, nil, nil, false
+      dg.ctl.send("skills"); dg.ctl.send("att " .. tostring(t))
+    end, rules = {
+      { "prepared to train further in",                    wpnPrepared },
+      { "weapons",                                         wpnSkillLine },
       { "you swing your",                                  wpnSwing },
       { "you fire your",                                   wpnShot },
       { "you must load or nock an arrow",                  wpnShot },
@@ -3692,7 +3788,7 @@ end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.94"
+C.version = "0.95"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
