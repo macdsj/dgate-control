@@ -287,6 +287,20 @@ dg.ctl.send("get boot")</script>
           <regex>^pl(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>ptfa</name>
+          <script>dg.ctl.loopStart("ptfa", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ptfa(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>ptweap</name>
+          <script>dg.ctl.loopStart("ptweapon", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ptweap(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>ptweapon</name>
           <script>dg.ctl.loopStart("ptweapon", matches[2])</script>
           <command />
@@ -3054,6 +3068,258 @@ end
 local function wpnSwing(t) if not WPN.phase then dg.ctl.send("att " .. tostring(t)) end end
 local function wpnShot(t) if not WPN.phase then dg.ctl.send("nock arrow;att " .. tostring(t)) end end
 
+
+-- ptfa: first aid training under fire. Sit, treat yourself over and over, keep a shield / parrying dagger readied (shield
+-- parry trains too), vigor yourself when fatigue is low, and when HP falls to 35% (dg.ctl.faLow) stand up, walk to a room
+-- with nobody attacking you, treat there until HP is back to 80% (dg.ctl.faResume), walk back and start again.
+--   dg.ctl.shieldKey  = the keyword of your shield / parrying dagger (default "par");  dg.ctl.faReturn = false: stay in the safe room
+dg.ctlHp = function()
+  local v = gmcp and gmcp.Char and gmcp.Char.Vitals
+  if type(v) ~= "table" then return nil end
+  local cur, max
+  for k, val in pairs(v) do
+    local key, n = tostring(k):lower(), tonumber(val)
+    if n and (key:match("^hp") or key:match("hit") or key:match("health")) then
+      if key:match("max") then max = max or n else cur = cur or n end
+    end
+  end
+  return cur, max
+end
+local FA_OPP = { north = "south", south = "north", east = "west", west = "east", up = "down", down = "up",
+  northeast = "southwest", southwest = "northeast", northwest = "southeast", southeast = "northwest",
+  n = "s", s = "n", e = "w", w = "e", u = "d", d = "u", ne = "sw", sw = "ne", nw = "se", se = "nw",
+  ["in"] = "out", out = "in" }
+local function faLoop()
+  local C = dg.ctl
+  local CFG = {
+    low = tonumber(dg.ctl.faLow) or 0.35, resume = tonumber(dg.ctl.faResume) or 0.8,
+    vigorAt = tonumber(dg.ctl.vigorAt) or 8, vigorCasts = tonumber(dg.ctl.vigorCasts) or 4, cool = 12,
+    stall = 14, stallMax = 6, notHurt = 3, quiet = 7, maxMoves = 8, stepWait = 1.5, hpPoll = 6,
+  }
+  local S = { on = true, mode = "treat", path = {}, timers = {}, stalls = 0, vigN = 0 }
+  local function say(m) C.say("ptfa: " .. m) end
+  local function after(sec, fn)
+    local id
+    id = tempTimer(sec, function() S.timers[id] = nil; if S.on then fn() end end)
+    S.timers[id] = true
+    return id
+  end
+  local function cancel(id) if id then pcall(killTimer, id); S.timers[id] = nil end end
+  local function me()
+    local who = tostring(C.char or ""):lower()
+    local n = C.selfName or (tostring(C.me or ""):lower():match("^([^%s]+)")) or who
+    return (n ~= "" and n) or "me"
+  end
+  local function canTreat() return S.mode == "treat" or S.mode == "away" end
+  local treat, sit
+  sit = function() C.send("sit") end
+  treat = function()
+    if not canTreat() then return end
+    cancel(S.treatT); cancel(S.stallT)
+    C.send("treat " .. me())
+    S.stallT = after(CFG.stall, function()
+      S.stallT = nil
+      S.stalls = S.stalls + 1
+      if S.stalls &gt; CFG.stallMax then C.warn("ptfa: the game stopped answering 'treat' -- stopping"); C.loopStop("no answer"); return end
+      if canTreat() then sit(); S.treatT = after(1.5, treat) end
+    end)
+  end
+  local function treatSoon(sec) cancel(S.treatT); S.treatT = after(sec, treat) end
+
+  -- shield: keep one readied (GMCP says whether one is)
+  local function shieldCheck()
+    local v = gmcp and gmcp.Char and gmcp.Char.Vitals
+    if S.noShield or type(v) ~= "table" or v.shield_readied ~= false then return end
+    if S.shieldAt and os.time() - S.shieldAt &lt; 20 then return end
+    S.shieldAt = os.time()
+    S.shieldTries = (S.shieldTries or 0) + 1
+    if S.shieldTries &gt; 3 then S.noShield = true; C.warn("ptfa: could not ready a shield (keyword '" .. tostring(dg.ctl.shieldKey or "par") .. "'; dg.ctl.shieldKey = ...) -- carrying on without"); return end
+    C.send("ready " .. tostring(dg.ctl.shieldKey or "par"))
+  end
+
+  -- vigor
+  local vigorStart, vigorDone
+  local function vigCmd() return "invoke vigor " .. me() end
+  vigorStart = function()
+    if S.noVigor or S.cool or not canTreat() then return end
+    local who = tostring(C.char or ""):lower()
+    if who == "kressa" or who == "katie" or who == "kasper" then S.noVigor = true; return end   -- shadow slinkers have no vigor spell
+    S.vigBack, S.mode, S.vigN = S.mode, "vigor", 0
+    cancel(S.treatT); cancel(S.stallT)
+    say("low on energy -- vigor")
+    C.send("q c"); C.send(vigCmd())
+    S.vigT = after(30, function() vigorDone("no cast seen") end)
+  end
+  vigorDone = function(why)
+    if S.mode ~= "vigor" then return end
+    cancel(S.vigT)
+    S.mode = S.vigBack or "treat"
+    S.cool = after(CFG.cool, function() S.cool = nil end)
+    say("vigor done (" .. tostring(why) .. ")")
+    sit(); treatSoon(1)
+  end
+  local function fatSeen(c) if c and c &lt;= CFG.vigorAt and canTreat() then vigorStart() end end
+
+  -- fleeing and coming back
+  local goBack, moveOn, safeHere
+  local function enemyHere()
+    if S.mode == "flee" and S.quietT then
+      cancel(S.quietT); S.quietT = nil
+      say("someone is attacking here too -- moving on")
+      moveOn()
+    end
+  end
+  moveOn = function()
+    if #S.path &gt;= CFG.maxMoves then C.warn("ptfa: " .. CFG.maxMoves .. " rooms and still no quiet one -- stopping where I am"); C.loopStop("no safe room"); return end
+    local last = S.path[#S.path]
+    local back = last and FA_OPP[last]
+    local pick
+    for _, d in ipairs(S.exits or {}) do if d ~= back then pick = d; break end end
+    pick = pick or (S.exits or {})[1]
+    if not pick then C.warn("ptfa: no exits known -- stopping"); C.loopStop("no exits"); return end
+    S.path[#S.path + 1] = pick
+    S.moving = true
+    C.send(pick)
+    S.moveT = after(8, function() if S.moving then S.moving = false; C.warn("ptfa: the move did not happen -- stopping"); C.loopStop("move failed") end end)
+  end
+  safeHere = function()
+    S.quietT = nil
+    S.mode = "away"
+    say("quiet here -- treating until HP is back to " .. math.floor(CFG.resume * 100) .. "%")
+    sit(); treatSoon(1.5)
+  end
+  local function flee(pct)
+    if S.mode ~= "treat" then return end
+    cancel(S.treatT); cancel(S.stallT)
+    S.mode = "flee"; S.path = {}
+    say("HP at " .. pct .. "% -- getting out of here")
+    C.send("q c"); C.send("stand")
+    S.wantExits = true
+    after(2.5, function() C.send("look") end)
+  end
+  goBack = function()
+    if S.mode ~= "away" then return end
+    cancel(S.treatT); cancel(S.stallT)
+    if dg.ctl.faReturn == false or #S.path == 0 then S.mode = "treat"; S.path = {}; sit(); treatSoon(1); return end
+    S.mode = "return"
+    say("healed -- back the way I came")
+    C.send("q c"); C.send("stand")
+    local i, d0 = #S.path, 2
+    local function step()
+      if not S.on then return end
+      if i &lt; 1 then S.path = {}; S.mode = "treat"; sit(); treatSoon(1.5); return end
+      local d = FA_OPP[S.path[i]] or S.path[i]
+      i = i - 1
+      C.send(d)
+      after(CFG.stepWait or CFG.stepWait or 1.5, step)
+    end
+    after(d0, step)
+  end
+
+  local function hpCheck()
+    local cur, max = dg.ctlHp()
+    if not (cur and max and max &gt; 0) then return end
+    local ratio = cur / max
+    if S.mode == "flee" and S.quietT and S.lastHp and cur &lt; S.lastHp then enemyHere() end
+    S.lastHp = cur
+    if S.mode == "treat" and ratio &lt;= CFG.low then flee(math.floor(ratio * 100))
+    elseif S.mode == "away" and ratio &gt;= CFG.resume then goBack() end
+  end
+
+  local function exitsLine()
+    local l = tostring(getCurrentLine and getCurrentLine() or ""):lower()
+    local list = l:match("exits:%s*(.*)")
+    if not list then return end
+    S.exits = {}
+    for w in list:gmatch("%a+") do S.exits[#S.exits + 1] = w end
+    if S.moving then
+      S.moving = false; cancel(S.moveT)
+      cancel(S.quietT)
+      S.lastHp = (dg.ctlHp())
+      S.quietT = after(CFG.quiet, safeHere)
+    elseif S.wantExits and S.mode == "flee" then
+      S.wantExits = false
+      moveOn()
+    end
+  end
+
+  local rules = {
+    { "you tend your wounds",      function() S.stalls = 0; if canTreat() then treatSoon(0.4) end end },
+    { "target is not injured",     function() S.stalls = 0; if canTreat() then treatSoon(CFG.notHurt) end end },
+    { "obvious exits:",            exitsLine },
+    { "must be sitting",           function() if canTreat() then sit(); treatSoon(1.5) end end },
+    { "need to be sitting",        function() if canTreat() then sit(); treatSoon(1.5) end end },
+    { "must stand up first",       function() if S.mode == "vigor" then C.send("stand"); after(2, function() C.send(vigCmd()) end) end end },
+    { "weaving those runes",       function()
+        if S.mode ~= "vigor" then return end
+        S.vigN = S.vigN + 1
+        cancel(S.vigT); S.vigT = after(30, function() vigorDone("no cast seen") end)
+        if S.vigN &gt;= CFG.vigorCasts then vigorDone(S.vigN .. " casts") else C.send(vigCmd()) end
+      end },
+    { "warning: current fatigue below", function() vigorStart() end },
+    { "don't have enough energy",       function()
+        if S.mode == "vigor" then vigorDone("too tired to cast") else vigorStart() end
+      end },
+    { "the runes quickly fly apart",    function() if S.mode == "vigor" then after(2, function() C.send(vigCmd()) end) end end },
+    { "* at you!",                      enemyHere },
+    { "* hits you",                     enemyHere },
+    { "* attacks you",                  enemyHere },
+    { "* misses you",                   enemyHere },
+    { "hp:*ftg:",                       function()
+        local l = tostring(getCurrentLine and getCurrentLine() or "")
+        local a, b = l:match("[Hh][Pp]:%s*(%d+)%s*/%s*(%d+)")
+        if a and b then S.polled = { tonumber(a), tonumber(b) } end
+      end },
+  }
+  for _, p in ipairs(dg.ctlRunePatterns or {}) do
+    rules[#rules + 1] = { p, function() if not S.noVigor then S.noVigor = true; C.warn("ptfa: out of runes -- no more vigor (no renew trip in ptfa)"); if S.mode == "vigor" then vigorDone("out of runes") end end end }
+  end
+
+  return {
+    target = false, qc = true,
+    start = function()
+      S.on = true
+      if registerAnonymousEventHandler then
+        S.gmcpH = registerAnonymousEventHandler("gmcp.Char.Vitals", function()
+          if not S.on then return end
+          if dg.ctlFatigue then local c = dg.ctlFatigue(); if c then fatSeen(c) end end
+          shieldCheck()
+          hpCheck()
+        end)
+      end
+      local cur, max = dg.ctlHp()
+      say("on (treat " .. me() .. "; away at " .. math.floor(CFG.low * 100) .. "% HP; shield '" .. tostring(dg.ctl.shieldKey or "par") .. "')")
+      if not (cur and max) then
+        C.warn("ptfa: the game's data does not show your HP -- polling with 'h' instead (send me gmcpdump if this looks wrong)")
+        S.pollT = tempTimer(CFG.hpPoll, function() end)
+        local function poll()
+          if not S.on then return end
+          C.send("h")
+          after(0.6, function()
+            local p = S.polled
+            if p and p[2] &gt; 0 then
+              local ratio = p[1] / p[2]
+              if S.mode == "treat" and ratio &lt;= CFG.low then flee(math.floor(ratio * 100))
+              elseif S.mode == "away" and ratio &gt;= CFG.resume then goBack() end
+            end
+          end)
+          S.pollTimer = after(CFG.hpPoll, poll)
+        end
+        poll()
+      end
+      shieldCheck()
+      sit(); treatSoon(1.5)
+    end,
+    onStop = function()
+      S.on = false
+      for id in pairs(S.timers) do pcall(killTimer, id) end
+      if S.pollT then pcall(killTimer, S.pollT) end
+      if S.gmcpH and killAnonymousEventHandler then killAnonymousEventHandler(S.gmcpH); S.gmcpH = nil end
+    end,
+    rules = rules,
+  }
+end
+
 dg.ctlLoops = {
 
   ------------------------------------------------------------ generic (every character)
@@ -3062,6 +3328,7 @@ dg.ctlLoops = {
   -- Martial arts and natural attacks (mart, clawk, bitek, stingk, breathk, webk, and the pt... versions) are built
   -- by attackLoop() above and registered right after this table.
   thk     = { qc = true, start = "throw spiked at {t}", rules = weaponRules },
+  ptfa = { target = false, make = function() return faLoop() end },   -- ptfa: first aid training under fire (see faLoop)
   ptweapon = { qc = true, start = function(t) wpnClear(); dg.ctl.send("att " .. tostring(t)) end, rules = {
       { "you swing your",                                  wpnSwing },
       { "you fire your",                                   wpnShot },
@@ -3424,7 +3691,7 @@ end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.90"
+C.version = "0.91"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
