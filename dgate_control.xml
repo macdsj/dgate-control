@@ -1481,10 +1481,10 @@ D.classKits = {
 -- and the  unwield  alias.
 D.weapon = D.weapon or { default = "dirk" }
 
--- The spell ptsneakd casts at YOU before resting, to wound you slightly (so a healer's vigor earns favors).
--- woundSpell = { default = "dart", raptorian = "larrow" }   (lower-case character names; false = none)
--- Target is your current name (disguise name if you wear one); override with dg.ctl.selfName = "name".
-D.woundSpell = D.woundSpell or { default = "dart" }
+-- The spell ptsneakd casts at YOU before resting, to wound you slightly. OFF by default (false = none): with no spell
+-- ptsneakd just rests when tired, like ptsneakb. To bring it back: D.woundSpell = { default = "dart", raptorian = "larrow" }
+-- (lower-case character names). Target is your current name (disguise name if you wear one); override with dg.ctl.selfName.
+D.woundSpell = D.woundSpell or { default = false }
 
 -- lines that end any targeted loop, for every character
 dg.ctlStops = { "but the*is dead", "I don't see what you are referring to", "what good would that do against the dead" }
@@ -3691,7 +3691,7 @@ end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.91"
+C.version = "0.92"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
