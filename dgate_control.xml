@@ -294,6 +294,13 @@ dg.ctl.send("get boot")</script>
           <regex>^ptfa(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>ptthrow</name>
+          <script>dg.ctl.loopStart("ptthrow", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^ptthrow(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>ptweap</name>
           <script>dg.ctl.loopStart("ptweapon", matches[2])</script>
           <command />
@@ -3077,7 +3084,10 @@ local function wpnReadied(t)
   if WPN.phase ~= "ready" then return end
   wpnClear()
   if WSK.want then WSK.cur, WSK.want, WSK.busy = WSK.want, nil, false end
-  tempTimer(1, function() dg.ctl.send("att " .. tostring(t)) end)
+  tempTimer(1, function()
+    if WPN.mode == "throw" then dg.ctl.send("throw " .. tostring(dg.ctl.throwKey or "boom") .. " at " .. tostring(t))
+    else dg.ctl.send("att " .. tostring(t)) end
+  end)
 end
 local function wpnSkillOf(name)
   for i, e in ipairs(dg.ctlWeaponSet) do
@@ -3157,6 +3167,33 @@ local function wpnSkillLine(t)
       if WSK.ready[i] and i == WSK.cur then wpnSwitch(t) end
     end
   end
+end
+
+-- ptthrow: a returning thrown weapon (boomerang): "throw boom at target" after every throw. The boomerang comes back to your
+-- hand ("... just returned to your hand!"), so there is nothing to pick up. A DAMAGED boomerang is put in the pack by the stow
+-- trigger (so it can be repaired); this loop then readies another one. dg.ctl.throwKey = the keyword (default "boom").
+local function wpnThrow(t)
+  local l = tostring(getCurrentLine and getCurrentLine() or ""):lower()
+  if not l:find("damaged", 1, true) then WPN.stows = 0 end
+  if not WPN.phase then dg.ctl.send("throw " .. tostring(dg.ctl.throwKey or "boom") .. " at " .. tostring(t)) end
+end
+local function wpnDamagedBack(t)
+  if WPN.mode ~= "throw" or WPN.phase == "stow" then return end
+  WPN.stows = (WPN.stows or 0) + 1
+  if WPN.stows &gt; 3 then
+    dg.ctl.warn("ptthrow: only damaged boomerangs left -- stopping")
+    dg.ctl.loopStop("only damaged boomerangs")
+    return
+  end
+  WPN.phase = "stow"
+  dg.ctl.send("q c")
+  dg.ctl.say("ptthrow: that boomerang is damaged -- putting it away and readying another")
+  tempTimer(4.5, function()
+    if WPN.phase ~= "stow" then return end
+    local key = tostring(dg.ctl.throwKey or "boom")
+    WPN.cands, WPN.i, WPN.noun = { key }, 1, key
+    wpnReady(t)
+  end)
 end
 
 
@@ -3421,8 +3458,22 @@ dg.ctlLoops = {
   -- by attackLoop() above and registered right after this table.
   thk     = { qc = true, start = "throw spiked at {t}", rules = weaponRules },
   ptfa = { target = false, make = function() return faLoop() end },   -- ptfa: first aid training under fire (see faLoop)
+  ptthrow = { qc = true, start = function(t)
+      wpnClear(); WPN.mode = "throw"; WPN.stows = 0
+      dg.ctl.send("throw " .. tostring(dg.ctl.throwKey or "boom") .. " at " .. tostring(t))
+    end, rules = {
+      { "you throw your",                                  wpnThrow },
+      { "you're too close",                                wpnThrow },
+      { "you must move closer to your opponent's rank",    wpnThrow },
+      { "damaged*returns to your hand",                    wpnDamagedBack },
+      { "damaged*returned to your hand",                   wpnDamagedBack },
+      { "your damaged*just broke",                         wpnBroke },
+      { "too damaged to be used",                          wpnTooDamaged },
+      { "is now your ready weapon",                        wpnReadied },
+      { "prepared to train further in throw",              function() dg.ctl.say("ptthrow: Throw Weapons is ready to train -- stopping"); dg.ctl.loopStop("skill ready") end },
+  } },
   ptweapon = { qc = true, start = function(t)
-      wpnClear(); WSK.ready, WSK.unavail, WSK.cur, WSK.want, WSK.busy = {}, {}, nil, nil, false
+      wpnClear(); WPN.mode = "att"; WSK.ready, WSK.unavail, WSK.cur, WSK.want, WSK.busy = {}, {}, nil, nil, false
       dg.ctl.send("skills"); dg.ctl.send("att " .. tostring(t))
     end, rules = {
       { "prepared to train further in",                    wpnPrepared },
@@ -3788,7 +3839,7 @@ end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.95"
+C.version = "0.96"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
@@ -4894,7 +4945,7 @@ function C.init()
   -- thrown again until it breaks (repairable). If the game says it is still readied, remove it first.
   --   "The damaged simple wooden boomerang returns to your hand."   (or "Your damaged ...")
   -- dg.ctl.packName = the word for your container (default "back" = backpack); dg.ctl.damagedStow = false turns it off.
-  C.trig("sys", "(?i)\\bdamaged\\s+(.+?)\\s+returns? to your hand", function()
+  C.trig("sys", "(?i)\\bdamaged\\s+(.+?)\\s+(?:returns?|just returned) to your hand", function()
     if C.damagedStow == false or dg.ctl.damagedStow == false then return end
     local noun = itemNoun(trim(matches[2] or ""))
     if noun == "" then return end
