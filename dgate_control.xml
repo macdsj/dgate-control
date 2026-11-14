@@ -294,6 +294,20 @@ dg.ctl.send("get boot")</script>
           <regex>^ptfa(?:\s+(.*))?$</regex>
         </Alias>
         <Alias isActive="yes" isFolder="no">
+          <name>ptbrawl</name>
+          <script>dg.ctl.loopStart("ptbrawl", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^(?:ptbrawl|ptpunch)(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
+          <name>brawlk</name>
+          <script>dg.ctl.loopStart("brawlk", matches[2])</script>
+          <command />
+          <packageName />
+          <regex>^brawlk(?:\s+(.*))?$</regex>
+        </Alias>
+        <Alias isActive="yes" isFolder="no">
           <name>ptthrow</name>
           <script>dg.ctl.loopStart("ptthrow", matches[2])</script>
           <command />
@@ -3002,6 +3016,7 @@ local POWER_LOOPS = {   -- loop name = { label, attack, supply }
   stingk  = { fixed("sting {t}"), false },           ptsting  = { fixed("sting {t}"), true },
   breathk = { fixed("breathe fire at {t}"), false }, ptbreath = { fixed("breathe fire at {t}"), true },
   webk    = { webCmd, false },                       ptweb    = { webCmd, true },
+  brawlk  = { fixed("punch {t}"), false },           ptbrawl  = { fixed("punch {t}"), true },   -- brawling: punch (like ptmart: vigor, renew trip, first target)
 }
 
 
@@ -3839,7 +3854,7 @@ end
 dg = dg or {}
 dg.ctl = dg.ctl or {}
 local C = dg.ctl
-C.version = "0.96"
+C.version = "0.97"
 
 ---------------------------------------------------------------------------
 -- config (dgcfg in game)
